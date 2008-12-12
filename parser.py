@@ -1,5 +1,6 @@
 import sys
 import struct
+import logging
 
 # Tag, attributes lengths
 LEN_16 = chr(0xfe)
@@ -15,7 +16,7 @@ TAG_MEDIUM_NAME = chr(0x11)
 TAG_LONG_NAME = chr(0x12)
 TAG_MEDIA_DESCRIPTION = chr(0x13)
 
-def detect_tag(byte, fp):
+def detectTag(byte, fp):
     if byte == TL_EPG:
         print '* EPG top level element at %d' % fp.tell()
     elif byte == TL_SERVICEINFO:
@@ -53,15 +54,16 @@ def element(byte, fp):
 def attribute():
     pass
 
-def parse_it(fp):
+def parseIt(fp):
     while True:
         b = fp.read(1)
         if not b:
             print 'No data to read'
             break
-        detect_tag(b, fp)
+        detectTag(b, fp)
+
 
 if __name__ == '__main__':
     fp = file(sys.argv[1], 'rb')
-    parse_it(fp)
+    parseIt(fp)
     fp.close()

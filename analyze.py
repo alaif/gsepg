@@ -9,6 +9,7 @@ import sys
 import os.path
 import logging
 import tsdecoder
+import parser
 
 def setupLogging():
 	lFormat = '%(asctime)s %(levelname)s %(message)s'
