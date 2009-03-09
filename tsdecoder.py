@@ -6,6 +6,12 @@ Jonas Fiala, 2007
 Dekoduje Transport Stream (MPEG-2 norma http://en.wikipedia.org/wiki/MPEG_transport_stream). 
 Vyfiltrovany payload DVB paketu zabira cca 97.8%.
 
+
+Puvod delky 188B:
+Because MPEG-2 wanted these packets to be carried over ATM. At that time, according to the AAL which was envisaged, ATM cells were supposed to have a payload of 47 bytes.
+188 = 4 * 47. 
+
+
 http://www.lucike.info/index.htm?http://www.lucike.info/page_digitaltv_buf.htm
 
 ETSI - EPG 03 - binary encoding.pdf, 4 Encoding: binarni kodovani EPG/XML
@@ -38,7 +44,16 @@ elementStructure() {
 '''
 
 import logging
+import os
+from common import StreamType
 
+# constants
+PACKET_SIZE = 188 #in Bytes
+BUFFER_SIZE = 8 * PACKET_SIZE
+SEEK_RELATIVE = os.SEEK_CUR
+
+# logging
+log = logging.getLogger('fia112.epg.tsdecoder')
 
 def __num2bitList(number):
 	out = []
@@ -66,48 +81,56 @@ def getBits(chars):
 	out = []
 	if type(chars) == type(''):
 		if len(chars) > 1:
-			#logging.debug('more bytes=(%s)' % chars)
+			#log.debug('more bytes=(%s)' % chars)
 			for i in range(len(chars)):
 				for bit in getBits(chars[i]):
 					out.append(bit)
-			#logging.debug('getBits(%s): %s' % (chars, str(out)) )
+			#log.debug('getBits(%s): %s' % (chars, str(out)) )
 			return out
 		else:
 			cp = ord(chars)
 	else:
 		cp = chars
 	out = __fill2length( __num2bitList(cp), 0, 8 )
-	#logging.debug('getBits(%s)(0x%x): %s' % (chars, ord(chars), str(out)) )
+	#log.debug('getBits(%s)(0x%x): %s' % (chars, ord(chars), str(out)) )
 	return out
+
+
+def bitString2Int(s):
+    v,base=0,1
+    for i in range(len(s)): 
+        if s[-(i+1)] == '1': v=v+base
+        base=base*2
+    return v
 
 
 def bits2dec(bitList):
-	out = 0
-	r = range( len(bitList) )
-	r.reverse()
-	for c in r:
-		if bitList[c] == 1:
-			out += pow(2, c)
-	return out
+    ''' FIXME vypujcena funkce z http://maja.dit.upm.es/~afc/pid0parser-py.txt pro overeni. '''
+    out = 0
+    r = range( len(bitList) )
+    r.reverse()
+    for c in r:
+        if bitList[c] == 1:
+            out += pow(2, c)
+    return out
 
 
-def isPacketStart(stream):
+def isPacketStart(fileobj):
 	''' detekuje zacatek paketu, vraci pozici souboru zpet '''
-	CURRENT_POS = 1
-	data = stream.read(1)
+	data = fileobj.read(1)
 	if data == '':
 		return None
 	if ord(data) == 0x47:
-		pos = stream.tell()
-		stream.seek(-1, CURRENT_POS)
+		pos = fileobj.tell()
+		fileobj.seek(-1, SEEK_RELATIVE)
 		return True
 	return False
 
 
-def packetHeader(stream):
+def packetHeader(fileobj):
 	''' parsuje obsah hlavicky paketu za synchronizacnim bytem 0x47 '''
 	out = {}
-	f = stream
+	f = fileobj
 	data = f.read(1)
 	if data == '':
 		return None
@@ -119,7 +142,7 @@ def packetHeader(stream):
 		out['tei'] = b[0]  #transport error indicator
 		out['pusi'] = b[1] #payload unit start indicator
 		out['tp'] = b[2]   #transport priority
-		out['pid'] = '0x%x' % bits2dec( b[3:] ) #Packet ID (13bit)
+		out['pid'] = bits2dec( b[3:] ) #Packet ID (13bit)
 		third = f.read(1)
 		b = getBits(third)
 		out['scram'] = b[0:2] #scrambling control (2bit)
@@ -127,3 +150,59 @@ def packetHeader(stream):
 		out['payload_presence'] = b[3] #payload data exist
 		out['continuity'] = b[4:] #continuity counter
 	return out
+
+
+class DVBStream(StreamType):
+    def __init__(self, pid, fileObject):
+        self.pid = pid
+        self.__fo = fileObject
+        self.__buff = ''
+        self.__position = 1
+        self.__previousBufferLength = 0
+        self.__pusi = True
+        self.end = False  # indikuje konec fileobjectu, ze ktereho se ctou data
+    
+    @property
+    def position(self):
+        return self.__position + self.__previousBufferLength
+
+    def __fillBuff(self):
+        ''' naplni buffer do velikosti BUFFER_SIZE nebo mensi, pokud uz neni co cist '''
+        f = self.__fo
+        self.__previousBufferLength += len(self.__buff)
+        self.__position = 1
+        self.__buff = '' # erase buffer
+        while True:
+            # TODO filtrovani PID !!!
+            pstart = isPacketStart(f)
+            if pstart == None:
+                self.end = True
+                log.info('End of fileobject. Nothing left to read.')
+                break
+            if not pstart: # nic zajimaveho tak posun o jeden byte vpred
+                f.seek(1, SEEK_RELATIVE)
+                continue
+            #log.debug('Sync byte 0x47')
+            header = packetHeader(f)
+            log.debug( header )
+            # 1. po nacteni hlavicky zbyva precist dalsich 184B payloadu (paket size=188B)
+            payload = f.read(184)
+            if header['pid'] != self.pid: # the PID is not mine
+                continue
+            if not header['pusi'] and self.__pusi: #pusi == 1 paket ktery zacina TL elementem(?)
+                continue
+            self.__pusi = True
+            self.__buff += payload
+            if len(self.__buff) >= BUFFER_SIZE:
+                break
+
+    def readByte(self, increment=True):
+        if self.__position > len(self.__buff):
+            self.__fillBuff()
+        out = self.__buff[self.__position - 1]
+        if increment:
+            self.__position += 1
+        return out
+
+    def tell(self):
+        return self.position

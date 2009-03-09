@@ -7,14 +7,15 @@ http://en.wikipedia.org/wiki/MPEG_transport_stream
 import re
 import sys
 import os.path
-import logging
+import logging, logging.config
 import tsdecoder
+from tsdecoder import DVBStream
 import parser
 
 def setupLogging():
 	lFormat = '%(asctime)s %(levelname)s %(message)s'
 	lDateFormat = '%Y-%m-%d %H:%M:%S'
-	lLevel = logging.ERROR
+	lLevel = logging.DEBUG
 	logging.basicConfig(
 		level = lLevel,
 		format = lFormat,
@@ -23,31 +24,18 @@ def setupLogging():
 	logging.root.setLevel(lLevel)
 
 
-setupLogging()
+#setupLogging()
+logging.config.fileConfig("logger.conf")
+log = logging.getLogger('fia112.epg.analyze')
 if len(sys.argv) < 2:
-	print 'Specify file to load.'
+	sys.stdout.write( 'Specify file to load.\n' )
 	sys.exit(1)
 filename = sys.argv[1]
 if not os.path.exists(filename):
-	print 'Specify existing file to load.'
+	sys.stdout.write( 'Specify existing file to load.\n' )
 	sys.exit(2)
 f = file(filename, 'rb')
-c = 0
-total = ''
-while True:
-	pstart = tsdecoder.isPacketStart(f)
-	if pstart == None:
-		break
-	if pstart:
-		c += 1
-		logging.debug('Sync byte 0x47')
-		logging.debug( tsdecoder.packetHeader(f) )
-		# 1. po nacteni hlavicky zbyva precist dalsich 184B payloadu (paket size=188B)
-		payload = f.read(184)
-		total += payload
-		if tsdecoder.isPacketStart(f): # kontrola, ze jsem neprecetl vic bytu nez jsem mel
-			logging.debug('Next packet is there! :-)')
-		if c >= 180: # kazdych 180 paketu vyblit nacteny payload na stdout
-			sys.stdout.write( total )
-			total = ''
+s = DVBStream(0x900, f)
+while not s.end:
+    parser.detectTag(s)
 f.close()
