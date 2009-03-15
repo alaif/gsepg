@@ -5,20 +5,14 @@
 extern "C" {
 #endif
 
-
+#define I18N_PACKAGE    "gsepg" 
+#define I18N_LOCALEDIR  "./locale"
 #define FD_STDIN     0
 #define FD_STDOUT    1
-#define MESSAGE_SIZE     1024
-#define CLIENT_NAME_SIZE 50
-// hlasky a prikazy:
-#define THANKS  "Diky za chatovani, ted te odpojim.\n"
-#define WELCOME "Vitej v chatu!\n\nPro odeslani zpravy ostatnim v mistnosti,\nstaci napsat zpravu a stisknout enter.\n"
-#define CMD_QUIT "/quit"
+#define _(String) gettext (String)
+#define gettext_noop(String) (String)
+#define N_(String) gettext_noop (String)
 
-typedef struct {
-	char message[MESSAGE_SIZE];
-	int shutdown;
-} shared_data;
 
 
 #ifdef __cplusplus

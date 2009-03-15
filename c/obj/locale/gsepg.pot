@@ -1,0 +1,39 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2009-03-15 18:36+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../src/extract.c:31
+#, c-format
+msgid ""
+"%s -v     enables verbose mode(i.e. printing debug messages).\n"
+"\n"
+msgstr ""
+
+#: ../src/extract.c:30
+#, c-format
+msgid ""
+"Usage:\n"
+"%s -h     prints this.\n"
+msgstr ""
+
+#: ../src/extract.c:61
+msgid "Verbose mode enabled.\n"
+msgstr ""
+
+#: ../src/extract.c:72
+msgid "main_loop() started"
+msgstr ""

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <time.h>
 
+
 static int verbose = 0; //verbose flag (podrobne vypisy o cinnosti programu na stdout)
 
 

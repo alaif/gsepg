@@ -17,6 +17,19 @@ OBJECTS=dbglib.o \
 project: $(OBJECTS) 
 	$(CC) $(OBJECTS) -o $(EXE_EPGEXTRACT)
 
+# Internationalization
+
+i18n_template:
+	mkdir locale; xgettext -d gsepg -s -o locale/gsepg.pot --language=C --from-code=UTF-8 --add-comments=/// --keyword=_ ../src/extract.c
+
+i18n_po:
+	 msginit -i locale/gsepg.pot -o locale/gsepg_cs.po -l cs; echo -n "\n\nNow should be translation into czech done. Then run make i18n_install.\n\n"
+
+i18n_install:
+	mkdir -p ./locale/cs/LC_MESSAGES; cp locale/gsepg_cs.mo locale/cs/LC_MESSAGES/
+
+# GSEPG suite modules, programs
+
 dbglib.o: ../src/dbglib.c
 	$(CC_MODULE) ../src/dbglib.c
 
