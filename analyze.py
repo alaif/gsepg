@@ -1,3 +1,4 @@
+#!/usr/bin/python
 '''
 analyze.py
 
@@ -37,5 +38,15 @@ if not os.path.exists(filename):
 f = file(filename, 'rb')
 s = DVBStream(0x900, f)
 while not s.end:
-    parser.detectTag(s)
+    # TODO zde udelat ten stavovy automat, ktery bude postupne tagy parsovat (nezle jen slepe hledat byty indikujici elementy
+    epg_len = parser.detectEpg(s)
+    if not epg_len:
+        continue
+    s.readByte() # posun o B dal za delku tagu.
+    parser.element(s)
+    continue
+    #data = parser.getData(s, epg_len)
+    #for b in data:
+    #    if b == 0x4d:
+    #        log.debug('SCHEDULE')
 f.close()

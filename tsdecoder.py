@@ -1,4 +1,4 @@
-'''
+"""
 tsdecoder.py
 
 Jonas Fiala, 2007
@@ -41,7 +41,7 @@ elementStructure() {
  }
 } 
 
-'''
+"""
 
 import logging
 import os
@@ -49,7 +49,7 @@ from common import StreamType
 
 # constants
 PACKET_SIZE = 188 #in Bytes
-BUFFER_SIZE = 8 * PACKET_SIZE
+BUFFER_SIZE = 80 * PACKET_SIZE
 SEEK_RELATIVE = os.SEEK_CUR
 
 # logging
@@ -156,24 +156,23 @@ class DVBStream(StreamType):
     def __init__(self, pid, fileObject):
         self.pid = pid
         self.__fo = fileObject
-        self.__buff = ''
-        self.__position = 1
+        self._buf = ''
+        self._position = 1
         self.__previousBufferLength = 0
-        self.__pusi = True
+        self._startFound = False
         self.end = False  # indikuje konec fileobjectu, ze ktereho se ctou data
     
     @property
     def position(self):
-        return self.__position + self.__previousBufferLength
+        return self._position + self.__previousBufferLength
 
     def __fillBuff(self):
         ''' naplni buffer do velikosti BUFFER_SIZE nebo mensi, pokud uz neni co cist '''
         f = self.__fo
-        self.__previousBufferLength += len(self.__buff)
-        self.__position = 1
-        self.__buff = '' # erase buffer
+        self.__previousBufferLength += len(self._buf)
+        self._position = 1
+        self._buf = '' # erase buffer
         while True:
-            # TODO filtrovani PID !!!
             pstart = isPacketStart(f)
             if pstart == None:
                 self.end = True
@@ -187,21 +186,25 @@ class DVBStream(StreamType):
             log.debug( header )
             # 1. po nacteni hlavicky zbyva precist dalsich 184B payloadu (paket size=188B)
             payload = f.read(184)
-            if header['pid'] != self.pid: # the PID is not mine
+            # filtrovani PID 
+            if self.pid and header['pid'] != self.pid: # the PID is not mine
                 continue
-            if not header['pusi'] and self.__pusi: #pusi == 1 paket ktery zacina TL elementem(?)
+            if not header['pusi'] and not self._startFound: #pusi == 1 paket ktery zacina TL elementem(?)
+                log.debug('Waiting first packet with toplevel element...')
                 continue
-            self.__pusi = True
-            self.__buff += payload
-            if len(self.__buff) >= BUFFER_SIZE:
+            if not self._startFound:
+                log.info('FIRST PACKET WITH Toplevel element!')
+                self._startFound = True
+            self._buf += payload
+            if len(self._buf) >= BUFFER_SIZE:
                 break
 
     def readByte(self, increment=True):
-        if self.__position > len(self.__buff):
+        if self._position > len(self._buf):
             self.__fillBuff()
-        out = self.__buff[self.__position - 1]
+        out = self._buf[self._position - 1]
         if increment:
-            self.__position += 1
+            self._position += 1
         return out
 
     def tell(self):

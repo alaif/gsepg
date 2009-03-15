@@ -1,3 +1,9 @@
+"""
+parser.py
+
+EPG Binary encoded XML parser.
+"""
+
 import sys
 import logging
 from common import StreamType
@@ -66,25 +72,28 @@ def detectTag(stream):
         log.debug( '* EPG top level element at %d' % stream.tell() )
     elif byte == TAGS['serviceInformation']:
         log.debug( '* SI  top level element at %d' % stream.tell() ) # Service Information top level element
-    else:
-        element(stream)
+    return element(stream)
 
-def element(stream):
-    """
-    # element_tag 8bit
-    # element_length 8bit
-    if element_length == 0xfe then element_length is 16bit
-    if element_length == 0xff then element_length is 24bit
-    for i in range(element_length):
-        element_data_byte ... 8bit
-    """
-    et = ord(stream.actualByte())
-    """
-    if byte != TAG_MEDIA_DESCRIPTION: # byte should by so called element_tag
-        return
-    """
-    if et < RANGE_TAG_BEGIN or et > RANGE_TAG_END:
-        return
+def detectEpg(stream):
+    """ returns False if no toplevel EPG tag is found, otherwise length of epg toplevel content """
+    byte = ord(stream.readByte())
+    if byte == TAGS['epg']:
+        length = elementLength(stream)
+        if not length:
+            return False
+        log.debug('* EPG top level element at byte %d, len %d' % (stream.tell(), length))
+        return length
+    return False
+
+def getData(stream, et_length):
+    data = []
+    for i in range(et_length):
+        data.append( stream.readByte() )
+    #log.debug('   %s' % ''.join(data))
+    #log.debug('   %s' % ' '.join(map(lambda d: '%x' % ord(d), data)))
+    return data
+
+def elementLength(stream):
     et_length = stream.readByte()
     if et_length == LEN_16:
         """
@@ -101,18 +110,36 @@ def element(stream):
         end = ord( stream.readByte() )
         et_length = end << 16 | mid << 8 | ord( et_length )
     else:
-        et_length = ord(et_length)
+        et_length = 0
+    return et_length
+
+def attribute(stream):
+    pass
+
+def element(stream):
+    """
+    # element_tag 8bit
+    # element_length 8bit
+    if element_length == 0xfe then element_length is 16bit
+    if element_length == 0xff then element_length is 24bit
+    for i in range(element_length):
+        element_data_byte ... 8bit
+    Element data contains:
+    1. Attributes
+    2. Child elements
+    3. CDATA content
+    """
+    et = ord(stream.actualByte())
+    #if et < RANGE_TAG_BEGIN or et > RANGE_TAG_END:
+    #    log.debug('byte not in range')
+    #    return
+    et_length = elementLength(stream)
     if et not in TAGS_R:
+        log.debug('Unknown tag 0x%x  (%d)' % (et, et))
         return
     log.debug( '=== Element %s length: %d' % (TAGS_R[et], et_length) )
     #log.debug( '=== Element %02X length: %d' % (et, et_length) )
-    data = []
-    for i in range(et_length):
-        data.append( stream.readByte() )
-    return data
-
-def attribute():
-    pass
+    return getData(stream, et_length)
 
 def parseIt(fp):
     """ obsolete, should use StreamType instance """
