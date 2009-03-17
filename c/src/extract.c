@@ -17,10 +17,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+// i18n
 #include <libintl.h>
 #include <locale.h>
+
 #include "../include/dbglib.h"
-#include "../include/common.h" // spolecna makra a datove struktury pro klienta i server
+#include "../include/common.h" // common macros and constants
+#include "../include/tsdecoder.h"
 
 
 //static int variable;
@@ -44,6 +47,15 @@ void handle_sig(int sig) {
 	}
 	printfdbg("done. Bye!");
 	exit(0);
+}
+
+
+void decode(char *filename) {
+    TransportStream* ts;
+    ts = tsdecoder_new(filename, EPG_GETSTREAM_PID);
+    printfdbg("TS instance created.");
+    tsdecoder_free(&ts);
+    printfdbg("TS instance destroyed.");
 }
 
 
@@ -87,6 +99,7 @@ int main(int arg_count, char **args) {
         return EXIT_ARGS_FILE;
     }
 	printfdbg(_("Processing file %s"), args[optind]);
+    decode(args[optind]);
 	return EXIT_SUCCESS;
 }
 
