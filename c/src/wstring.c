@@ -249,3 +249,6 @@ void wstr_free_total(WString** str) {
 	free((void*) *str);
 	*str = NULL;
 }
+
+
+// EOF

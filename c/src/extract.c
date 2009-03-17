@@ -23,7 +23,7 @@
 #include "../include/common.h" // spolecna makra a datove struktury pro klienta i server
 
 
-//static int client_ids[MAX_CLIENTS];
+//static int variable;
 
 
 void print_usage(char **args) {
@@ -47,7 +47,8 @@ void handle_sig(int sig) {
 }
 
 
-int main(int argCount, char **args) {
+int main(int arg_count, char **args) {
+    // signal handling
 	signal(SIGINT, handle_sig);
 	signal(SIGPIPE, handle_sig);
     // i18n
@@ -55,22 +56,38 @@ int main(int argCount, char **args) {
     bindtextdomain(I18N_PACKAGE, I18N_LOCALEDIR);
     textdomain(I18N_PACKAGE);
 
-	if (argCount > 1) {
-		if (strcmp(args[1], "-v") == 0 || strcmp(args[1], "--verbose") == 0) {
-			dbglib_set_verbose(1);
-			printfdbg(_("Verbose mode enabled.\n"));
-		} else if (strcmp(args[1], "-h") != 0 || strcmp(args[1], "--help") != 0) {
-			//print usage
-            print_usage(args);
-			return 0;
-		} else {
-			print_usage(args);
-			return 0;
-		}
-	}
+    if (arg_count == 0) {
+        print_usage(args);
+        return 0;
+    }
 
-	printfdbg(_("main_loop() started"));
-	return 0;
+    opterr = 0;
+    int c;
+    while ( (c = getopt(arg_count, args, "vh")) != -1 ) {
+        switch (c) {
+            case 'v':
+                dbglib_set_verbose(1);
+                printfdbg(_("Verbose mode enabled.\n"));
+                break;
+            case 'h':
+                print_usage(args);
+                return 0;
+            case '?':
+                if (optopt == 'X')
+                   printferr(_("Option -%c requires an argument.\n"), optopt);
+                else
+                   printferr(_("Unknown option character `\\x%x'.\n"), optopt);
+                return EXIT_ARGS;
+            default:
+                return EXIT_ARGS;
+        }
+    }
+    if (optind >= arg_count) { //there are unprocessed args i.e. filename
+        printferr(_("Filename missing."));
+        return EXIT_ARGS_FILE;
+    }
+	printfdbg(_("Processing file %s"), args[optind]);
+	return EXIT_SUCCESS;
 }
 
 

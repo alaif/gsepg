@@ -5,6 +5,10 @@
 extern "C" {
 #endif
 
+#define EXIT_SUCCESS     0
+#define EXIT_ARGS        1
+#define EXIT_ARGS_FILE   1
+
 #define I18N_PACKAGE    "gsepg" 
 #define I18N_LOCALEDIR  "./locale"
 #define FD_STDIN     0

@@ -172,7 +172,7 @@ class DVBStream(StreamType):
         self.__previousBufferLength += len(self._buf)
         self._position = 1
         self._buf = '' # erase buffer
-        while True:
+        while not self.end:
             pstart = isPacketStart(f)
             if pstart == None:
                 self.end = True

@@ -1,5 +1,5 @@
 #
-# Makefile pro 2. semestralni praci do predmetu Operacni Systemy.
+# This is Getstream EPG decoder Makefile.
 #
 
 DEBUG = -g -ggdb #-D__TESTING__ #-DTRACEPRN_ENABLED
@@ -8,14 +8,17 @@ THRFLAGS =  -D__USE_REENTRANT
 THRLIB = -lpthread 
 CC = cc -Wall $(DEBUG)
 CC_MODULE = $(CC) -c
-# Executable names (output)
+
+# Project (builds all executables)
+project: epgextract
+
+# Executable and object files for epgextract utility.
 EXE_EPGEXTRACT=gsepg-extract
+EPGEXTRACT_OBJECTS=dbglib.o \
+		extract.o tsdecoder.o
+epgextract: $(EPGEXTRACT_OBJECTS) 
+	$(CC) $(EPGEXTRACT_OBJECTS) -o $(EXE_EPGEXTRACT)
 
-OBJECTS=dbglib.o \
-		extract.o
-
-project: $(OBJECTS) 
-	$(CC) $(OBJECTS) -o $(EXE_EPGEXTRACT)
 
 # Internationalization
 
@@ -36,10 +39,13 @@ dbglib.o: ../src/dbglib.c
 wstring.o: ../src/wstring.c
 	$(CC_MODULE) ../src/wstring.c
 
-extract.o:	../src/extract.c ../include/dbglib.h ../include/common.h
+tsdecoder.o: ../src/tsdecoder.c
+	$(CC_MODULE) ../src/tsdecoder.c
+
+extract.o:	../src/extract.c ../include/dbglib.h ../include/common.h ../include/tsdecoder.h
 	$(CC_MODULE) ../src/extract.c
 
 
-# --- clean ---
+# Clean all object files and executables. 
 clean:
-	rm $(OBJECTS) $(EXE_EPGEXTRACT)
+	rm $(EPGEXTRACT_OBJECTS) $(EXE_EPGEXTRACT)
