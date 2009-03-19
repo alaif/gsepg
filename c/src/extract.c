@@ -1,7 +1,7 @@
 /*
-   main.c
+   extract.c
 
-   Jonas Fiala
+   Jonas Fiala, EPG information extractor.
 
 */
 
