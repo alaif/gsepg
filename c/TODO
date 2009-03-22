@@ -1,0 +1,13 @@
+Podivat se na RST tabulku, running status by mela umoznovat i prepinani programu
+automatizovane, tj. vhodne mozna i jako VPS (?).
+
+TDT (time and date), pro moznou synchronizaci casu nebo nejaky referencni vystup casu z dvb vysilani.
+Locale time zone je v TOT
+
+Zjistit, jestli ST (stuffing table) omezi obsah EPG..asi ano, tak ja ji nacitat.
+
+
+0x0 ... PAT prog. assoc table
+0x12 ... = 18 dec ... EIT table
+kazda sekce EIT max velikost 4096B
+kazda sekce jinych tabulek max velikost 1024B

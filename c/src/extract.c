@@ -3,7 +3,7 @@
 
    Jonas Fiala, EPG information extractor.
 
-*/
+ */
 
 
 #include <stdio.h>
@@ -24,6 +24,7 @@
 #include "../include/dbglib.h"
 #include "../include/common.h" // common macros and constants
 #include "../include/tsdecoder.h"
+#include "../include/eitdecoder.h"
 
 
 //static int variable;
@@ -51,9 +52,23 @@ void handle_sig(int sig) {
 
 
 void decode(char *filename) {
-    TransportStream* ts;
+    transport_stream* ts;
+    eitable tab_eit;
+    eitable *eit = &tab_eit;
+    unsigned char some[EITABLE_SIZE];
+    bool result;
+    int i;
     ts = tsdecoder_new(filename, EPG_GETSTREAM_PID);
     printfdbg("TS instance created.");
+
+    // find all EIT headers
+    while( (result = tsdecoder_get_data(ts, some, EITABLE_SIZE)) == TRUE ) {
+        if( eitdecoder_decode(eit, some) ) {
+            printfdbg("EIT read.");
+        }
+        ts->position += (TSPACKET_PAYLOAD_SIZE - EITABLE_SIZE);
+    }
+
     tsdecoder_free(&ts);
     printfdbg("TS instance destroyed.");
 }

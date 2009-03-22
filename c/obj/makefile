@@ -15,7 +15,7 @@ project: epgextract
 # Executable and object files for epgextract utility.
 EXE_EPGEXTRACT=gsepg-extract
 EPGEXTRACT_OBJECTS=dbglib.o \
-		extract.o tsdecoder.o
+		extract.o tsdecoder.o eitdecoder.o
 epgextract: $(EPGEXTRACT_OBJECTS) 
 	$(CC) $(EPGEXTRACT_OBJECTS) -o $(EXE_EPGEXTRACT)
 
@@ -42,10 +42,13 @@ wstring.o: ../src/wstring.c
 tsdecoder.o: ../src/tsdecoder.c
 	$(CC_MODULE) ../src/tsdecoder.c
 
+eitdecoder.o: ../src/eitdecoder.c
+	$(CC_MODULE) ../src/eitdecoder.c
+
 extract.o:	../src/extract.c ../include/dbglib.h ../include/common.h ../include/tsdecoder.h
 	$(CC_MODULE) ../src/extract.c
 
 
 # Clean all object files and executables. 
 clean:
-	rm $(EPGEXTRACT_OBJECTS) $(EXE_EPGEXTRACT)
+	rm $(EPGEXTRACT_OBJECTS) $(EXE_EPGEXTRACT) >/dev/null 2>&1; echo "Cleaned."
