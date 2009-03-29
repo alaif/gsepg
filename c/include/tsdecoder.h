@@ -5,19 +5,6 @@
 extern "C" {
 #endif
 
-#define TSPAYLOAD_BUFFER_SIZE   32768
-typedef struct{
-    int pid;
-	char* filename;
-	FILE *fo;
-    char buffer[TSPAYLOAD_BUFFER_SIZE]; // buffer should be used directly only by tsdecoder.c functions
-    int buffer_length;
-    int previous_buffer_length;
-    int position;      // byte position in payload-data buffer.
-    bool start_found;   // start of readable data (first usable packet)
-    bool end_reached;   // end of stream (end of TransportStream->fo file)
-} transport_stream;
-
 
 // Structure of packet header and adaptation field can be found on http://en.wikipedia.org/wiki/MPEG_transport_stream
 // packet header
@@ -58,6 +45,25 @@ typedef struct {
 } ts_adaptation_field;
 #define TSPACKET_ADAPT_FIELD_SIZE     2 // optional field lenghts excluded
 
+// TS packet
+typedef struct {
+    ts_packet_header header;
+    char payload[TSPACKET_PAYLOAD_SIZE];
+} ts_packet;
+
+// TS representation
+#define TSPACKET_BUFFER_SIZE 128 
+typedef struct {
+    int pid;
+	char* filename;
+	FILE *fo;
+    ts_packet buffer[TSPACKET_BUFFER_SIZE];  // TS packet buffer (probably better for finding nested tables in packets etc.)
+    int buffer_length;
+    int position;      // byte position in payload-data buffer.
+    bool start_found;   // start of readable data (first usable packet)
+    bool end_reached;   // end of stream (end of TransportStream->fo file)
+} transport_stream;
+
 
 transport_stream* tsdecoder_new(char* filename, int pid);
 bool tsdecoder_init(transport_stream* ts, char* filename, int pid);
@@ -65,8 +71,7 @@ void tsdecoder_free(transport_stream** ts);
 bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header);
 bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* field);
 void tsdecoder_print_packets(transport_stream* ts);
-bool tsdecoder_get_byte(transport_stream* ts, char* buff);
-bool tsdecoder_get_data(transport_stream* ts, char* buff, int buff_length);
+bool tsdecoder_get_packet(transport_stream* ts, ts_packet* packet);
 
 #ifdef __cplusplus
 }

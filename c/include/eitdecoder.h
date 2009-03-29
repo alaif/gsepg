@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include "../include/tsdecoder.h"
 
 typedef struct {
    unsigned int table_id                               :8;
@@ -103,6 +104,7 @@ typedef struct {
 #define TIMEOFFSETTABLE_SIZE 10
 
 
+bool eitdecoder_detect_eit(ts_packet* packet);
 bool eitdecoder_decode(eitable* eit, char* buff);
 
 #ifdef __cplusplus

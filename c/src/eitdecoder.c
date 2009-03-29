@@ -18,6 +18,16 @@
 4) other TS, event schedule information = table_id = "0x60" to "0x6F".
 */
 
+bool eitdecoder_detect_eit(ts_packet* packet) {
+    if (packet->header.pusi == 0) return FALSE;
+    if (packet->header.payload == 0) return FALSE;
+    char pointer = packet->payload[0];
+    char table_id = packet->payload[1];
+    if (pointer != 0) return FALSE;
+    printfdbg("EIT table found? pointer=%02x table_id=%02x", pointer, table_id);
+    return TRUE;
+}
+
 // Decodes EIT from 14 bytes length buff.
 // Returns TRUE if data were successfuly decoded, otherwise FALSE.
 bool eitdecoder_decode(eitable* eit, char* buff) {

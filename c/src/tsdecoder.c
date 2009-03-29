@@ -51,8 +51,6 @@ bool tsdecoder_init(transport_stream* ts, char* filename, int pid) {
     ts->pid = pid;
     ts->filename = filename;
     ts->fo = fo;
-    ts->buffer[0] = '\0';
-    ts->previous_buffer_length = 0;
     ts->buffer_length = 0;
     ts->position = 1;
     ts->start_found = FALSE;
@@ -134,8 +132,7 @@ bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* fi
 }
 
 void tsdecoder_fill_buffer(transport_stream* ts) {
-    ts_packet_header packet_header;
-    ts_packet_header* p_hdr = &packet_header;
+    ts_packet_header* p_hdr;
     char b;
     char payload[TSPACKET_PAYLOAD_SIZE];
     size_t status, byte_len = 1, one_element = 1;
@@ -143,11 +140,11 @@ void tsdecoder_fill_buffer(transport_stream* ts) {
     int i;
     ts->position = 1;
     ts->buffer_length = 0;
-    memset(ts->buffer, '\0', TSPAYLOAD_BUFFER_SIZE);
     printfdbg("filling tsdecoder's buffer...");
     while ( fread(&b, byte_len, one_element, ts->fo) == one_element ) {
         if ( !tsdecoder_is_packet_start(b) ) continue;
         // load packet header, if unavailable (false) go to next byte
+        p_hdr = &(ts->buffer[ ts->buffer_length ].header);
         found = tsdecoder_packet_header(ts, p_hdr);
         if ( !found ) continue;
         status = fread(payload, TSPACKET_PAYLOAD_SIZE, one_element, ts->fo);
@@ -160,21 +157,19 @@ void tsdecoder_fill_buffer(transport_stream* ts) {
         // TODO watch continuity field!
 
         tsdecoder_print_tsheader(p_hdr);
-        ts->start_found = TRUE;
-        //strncat(ts->buffer, payload, TSPACKET_PAYLOAD_SIZE);
-        for (i = ts->buffer_length; i < ts->buffer_length + TSPACKET_PAYLOAD_SIZE; i++) {
-            ts->buffer[i] = payload[i - ts->buffer_length];
-        }
-        ts->buffer_length += TSPACKET_PAYLOAD_SIZE;
+        //ts->start_found = TRUE;
+        memcpy(ts->buffer[ ts->buffer_length ].payload, payload, TSPACKET_PAYLOAD_SIZE);
+        ts->buffer_length++;
         // buffer is filled enough
-        if (ts->buffer_length + TSPACKET_PAYLOAD_SIZE >= TSPAYLOAD_BUFFER_SIZE) break;
+        if (ts->buffer_length == TSPACKET_BUFFER_SIZE) break;
     }
     printfdbg("tsdecoder's buffer filled.");
     /*printfdbg("Buffer filled, ts->buffer_length=%d", ts->buffer_length);
     for (i = 0; i < ts->buffer_length; i++) printf("%c", ts->buffer[i]);*/
 }
 
-bool tsdecoder_get_byte(transport_stream* ts, char* buff) {
+// Gets one packet from buffer. Returns TRUE if operation performed successfully otherwise FALSE.
+bool tsdecoder_get_packet(transport_stream* ts, ts_packet* packet) {
     if (ts->position > ts->buffer_length) {
         tsdecoder_fill_buffer(ts);
     }
@@ -183,20 +178,8 @@ bool tsdecoder_get_byte(transport_stream* ts, char* buff) {
         ts->end_reached = TRUE;
         return FALSE;
     }
-    *buff = ts->buffer[ts->position - 1];
+    *packet = ts->buffer[ts->position - 1];
     ts->position++; 
-    return TRUE;
-}
-
-// Fills-up *buff with payload bytes of TS packets.
-// Returns TRUE if bytes were successfuly read otherwise FALSE.
-bool tsdecoder_get_data(transport_stream* ts, char* buff, int buff_length) {
-    bool result;
-    int i;
-    for (i = 0; i < buff_length; i++) {
-        result = tsdecoder_get_byte(ts, &buff[i]);
-        if (!result) return FALSE;
-    }
     return TRUE;
 }
 

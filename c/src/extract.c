@@ -56,8 +56,10 @@ void decode(char *filename) {
     transport_stream* ts = &tab_ts;
     eitable tab_eit;
     eitable *eit = &tab_eit;
-    char some[EITABLE_SIZE];
+    ts_packet pac;
     bool result;
+    int i;
+
     result = tsdecoder_init(ts, filename, EPG_GETSTREAM_PID);
     if (!result) {
         printferr("TS decoder init failed.");
@@ -65,11 +67,13 @@ void decode(char *filename) {
     }
 
     // find all EIT headers
-    while( (result = tsdecoder_get_data(ts, some, EITABLE_SIZE)) == TRUE ) {
-        if( eitdecoder_decode(eit, some) ) {
-            printfdbg("EIT read.");
+    while ( (result = tsdecoder_get_packet(ts, &pac)) == TRUE ) {
+        if( eitdecoder_detect_eit(&pac) ) {
+            printf("EIT:");
+            for (i = 0; i < TSPACKET_PAYLOAD_SIZE; i++) printf("%c", pac.payload[i]);
+            printf("\n");
         }
-        ts->position += (TSPACKET_PAYLOAD_SIZE - EITABLE_SIZE);
+        ts->position++;
     }
     //tsdecoder_print_packets(ts);
 }
