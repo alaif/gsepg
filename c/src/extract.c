@@ -55,9 +55,8 @@ void decode(char *filename) {
     transport_stream* ts;
     eitable tab_eit;
     eitable *eit = &tab_eit;
-    unsigned char some[EITABLE_SIZE];
+    char some[EITABLE_SIZE];
     bool result;
-    int i;
     ts = tsdecoder_new(filename, EPG_GETSTREAM_PID);
     printfdbg("TS instance created.");
 
@@ -68,6 +67,7 @@ void decode(char *filename) {
         }
         ts->position += (TSPACKET_PAYLOAD_SIZE - EITABLE_SIZE);
     }
+    //tsdecoder_print_packets(ts);
 
     tsdecoder_free(&ts);
     printfdbg("TS instance destroyed.");

@@ -6,19 +6,32 @@ DEBUG = -g -ggdb #-D__TESTING__ #-DTRACEPRN_ENABLED
 FORK = -D__FORK_MODE__ 
 THRFLAGS =  -D__USE_REENTRANT
 THRLIB = -lpthread 
+#LIBS= -lm
+LIBS=
 CC = cc -Wall $(DEBUG)
 CC_MODULE = $(CC) -c
 
 # Project (builds all executables)
-project: epgextract
+project: epgextract httpfilter
+
+# Executable and object files for epgextract utility.
+EXE_FILTER=gsepg-filter
+FILTER_OBJECTS=dbglib.o wstring.o mysocket.o filter.o
+httpfilter: $(FILTER_OBJECTS) 
+	$(CC) $(FILTER_OBJECTS) -o $(EXE_FILTER) $(LIBS)
 
 # Executable and object files for epgextract utility.
 EXE_EPGEXTRACT=gsepg-extract
-EPGEXTRACT_OBJECTS=dbglib.o \
-		extract.o tsdecoder.o eitdecoder.o
+EPGEXTRACT_OBJECTS=dbglib.o extract.o tsdecoder.o eitdecoder.o bitoper.o crc32.o
 epgextract: $(EPGEXTRACT_OBJECTS) 
-	$(CC) $(EPGEXTRACT_OBJECTS) -o $(EXE_EPGEXTRACT)
+	$(CC) $(EPGEXTRACT_OBJECTS) -o $(EXE_EPGEXTRACT) $(LIBS)
 
+# Run debugger CGDB
+extdebug:
+	cgdb $(EXE_EPGEXTRACT)
+
+fildebug:
+	cgdb $(EXE_FILTER)
 
 # Internationalization
 
@@ -36,19 +49,35 @@ i18n_install:
 dbglib.o: ../src/dbglib.c
 	$(CC_MODULE) ../src/dbglib.c
 
+bitoper.o: ../src/bitoper.c ../include/dbglib.h ../include/common.h
+	$(CC_MODULE) ../src/bitoper.c
+
+mysocket.o: ../src/mysocket.c ../include/wstring.h
+	$(CC_MODULE) ../src/mysocket.c
+
+crc32.o: ../src/crc32.c
+	$(CC_MODULE) ../src/crc32.c
+
 wstring.o: ../src/wstring.c
 	$(CC_MODULE) ../src/wstring.c
 
-tsdecoder.o: ../src/tsdecoder.c
+tsdecoder.o: ../src/tsdecoder.c ../include/bitoper.h ../include/dbglib.h ../include/common.h
 	$(CC_MODULE) ../src/tsdecoder.c
 
-eitdecoder.o: ../src/eitdecoder.c
+eitdecoder.o: ../src/eitdecoder.c ../include/bitoper.h ../include/dbglib.h ../include/common.h \
+../include/crc32.h
 	$(CC_MODULE) ../src/eitdecoder.c
 
-extract.o:	../src/extract.c ../include/dbglib.h ../include/common.h ../include/tsdecoder.h
+extract.o:	../src/extract.c ../include/dbglib.h ../include/common.h ../include/tsdecoder.h \
+../include/eitdecoder.h 
 	$(CC_MODULE) ../src/extract.c
+
+filter.o:	../src/filter.c ../include/dbglib.h ../include/common.h 
+	$(CC_MODULE) ../src/filter.c
 
 
 # Clean all object files and executables. 
 clean:
-	rm $(EPGEXTRACT_OBJECTS) $(EXE_EPGEXTRACT) >/dev/null 2>&1; echo "Cleaned."
+	rm $(FILTER_OBJECTS) $(EXE_FILTER) \
+	$(EPGEXTRACT_OBJECTS) $(EXE_EPGEXTRACT) \
+	>/dev/null 2>&1; echo "Cleaned."

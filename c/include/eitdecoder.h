@@ -7,43 +7,36 @@ extern "C" {
 
 
 typedef struct {
-   u_char table_id                               :8;
-   u_char section_syntax_indicator               :1;
-   u_char                                        :3;
-   u_char section_length_hi                      :4;
-   u_char section_length_lo                      :8;
-   u_char service_id_hi                          :8;
-   u_char service_id_lo                          :8;
-   u_char                                        :2;
-   u_char version_number                         :5;
-   u_char current_next_indicator                 :1;
-   u_char section_number                         :8;
-   u_char last_section_number                    :8;
-   u_char transport_stream_id_hi                 :8;
-   u_char transport_stream_id_lo                 :8;
-   u_char original_network_id_hi                 :8;
-   u_char original_network_id_lo                 :8;
-   u_char segment_last_section_number            :8;
-   u_char segment_last_table_id                  :8;
+   unsigned int table_id                               :8;
+   unsigned int section_syntax_indicator               :1;
+   unsigned int                                        :3;
+   unsigned int section_length                         :12;
+   unsigned int service_id                             :16;
+   unsigned int                                        :2;
+   unsigned int version_number                         :5;
+   unsigned int current_next_indicator                 :1;
+   unsigned int section_number                         :8;
+   unsigned int last_section_number                    :8;
+   unsigned int transport_stream_id                    :16;
+   unsigned int original_network_id                    :16;
+   unsigned int segment_last_section_number            :8;
+   unsigned int segment_last_table_id                  :8;
 } eitable;
 #define EITABLE_SIZE 14
 
 
 typedef struct {
-   u_char event_id_hi                            :8;
-   u_char event_id_lo                            :8;
-   u_char mjd_hi                                 :8;
-   u_char mjd_lo                                 :8;
-   u_char start_time_h                           :8;
-   u_char start_time_m                           :8;
-   u_char start_time_s                           :8;
-   u_char duration_h                             :8;
-   u_char duration_m                             :8;
-   u_char duration_s                             :8;
-   u_char running_status                         :3;
-   u_char free_ca_mode                           :1;
-   u_char descriptors_loop_length_hi             :4;
-   u_char descriptors_loop_length_lo             :8;
+   unsigned int event_id_hi                            :16;
+   unsigned int mjd                                    :16;
+   unsigned int start_time_h                           :8;
+   unsigned int start_time_m                           :8;
+   unsigned int start_time_s                           :8;
+   unsigned int duration_h                             :8;
+   unsigned int duration_m                             :8;
+   unsigned int duration_s                             :8;
+   unsigned int running_status                         :3;
+   unsigned int free_ca_mode                           :1;
+   unsigned int descriptors_loop_length                :12;
 } eitable_event;
 #define EITABLE_EVENT_SIZE 12
 
@@ -110,7 +103,7 @@ typedef struct {
 #define TIMEOFFSETTABLE_SIZE 10
 
 
-bool eitdecoder_decode(eitable* eit, unsigned char* buff);
+bool eitdecoder_decode(eitable* eit, char* buff);
 
 #ifdef __cplusplus
 }

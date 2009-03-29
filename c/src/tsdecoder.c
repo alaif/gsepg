@@ -7,6 +7,7 @@
 
 #include "../include/common.h"
 #include "../include/dbglib.h"
+#include "../include/bitoper.h"
 #include "../include/tsdecoder.h"
 
 void tsdecoder_print_tsheader(ts_packet_header* p_hdr) {
@@ -77,12 +78,12 @@ bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header) {
     size_t status, one_element = 1;
     char buff[TSPACKET_HEADER_SIZE];
     // load packet header
-    status = fread(&buff, TSPACKET_HEADER_SIZE, one_element, ts->fo);
+    status = fread(buff, TSPACKET_HEADER_SIZE, one_element, ts->fo);
     if (status != one_element) {
         return FALSE;
     }
     //printfdbg("Header: %02x %02x %02x %02x", buff[0], buff[1], buff[2], buff[3]);
-    header->sync = buff[0];
+    /*header->sync = buff[0];
     header->pid = (buff[1] << 8 | buff[2]) & 0x1fff;
     header->tei = buff[1] & 0x80 ? 1 : 0;
     header->pusi = buff[1] & 0x40 ? 1 : 0;
@@ -90,7 +91,19 @@ bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header) {
     header->scram = (buff[3] & 0xc0) >> 6;
     header->adapt = buff[3] & 0x40 ? 1 : 0;
     header->payload = buff[3] & 0x10 ? 1 : 0;
-    header->continuity = buff[3] & 0xf;
+    header->continuity = buff[3] & 0xf;*/
+    bitoper _bit_op;
+    bitoper* bit_op = &_bit_op;
+    bitoper_init(bit_op, buff, TSPACKET_HEADER_SIZE * 8);
+    header->sync = bitoper_walk_number(bit_op, 8);
+    header->tei = bitoper_walk_number(bit_op, 1);
+    header->pusi = bitoper_walk_number(bit_op, 1);
+    header->tp = bitoper_walk_number(bit_op, 1);
+    header->pid = bitoper_walk_number(bit_op, 13);
+    header->scram = bitoper_walk_number(bit_op, 2);
+    header->adapt = bitoper_walk_number(bit_op, 1);
+    header->payload = bitoper_walk_number(bit_op, 1);
+    header->continuity = bitoper_walk_number(bit_op, 4);
     return TRUE;
 }
 
@@ -98,11 +111,11 @@ bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* fi
     size_t status, one_element = 1;
     char buff[TSPACKET_ADAPT_FIELD_SIZE];
     // load adaptation field
-    status = fread(&buff, TSPACKET_ADAPT_FIELD_SIZE, one_element, ts->fo);
+    status = fread(buff, TSPACKET_ADAPT_FIELD_SIZE, one_element, ts->fo);
     if (status != one_element) {
         return FALSE;
     }
-    field->length = buff[0];
+    /*field->length = buff[0];
     field->discontinuity = buff[1] & 0x80 ? 1: 0;
     field->random = buff[1] & 0x40 ? 1: 0;
     field->es_priority = buff[1] & 0x20 ? 1: 0;
@@ -110,7 +123,19 @@ bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* fi
     field->opcr = buff[1] & 0x8 ? 1: 0;
     field->splicing_point = buff[1] & 0x4 ? 1: 0;
     field->private_data = buff[1] & 0x2 ? 1: 0;
-    field->adapt_extension = buff[1] & 0x1 ? 1: 0;
+    field->adapt_extension = buff[1] & 0x1 ? 1: 0;*/
+    bitoper _bit_op;
+    bitoper* bit_op = &_bit_op;
+    bitoper_init(bit_op, buff, TSPACKET_ADAPT_FIELD_SIZE * 8);
+    field->length = bitoper_walk_number(bit_op, 8);
+    field->discontinuity = bitoper_walk_number(bit_op, 1);
+    field->random = bitoper_walk_number(bit_op, 1);
+    field->es_priority = bitoper_walk_number(bit_op, 1);
+    field->pcr = bitoper_walk_number(bit_op, 1);
+    field->opcr = bitoper_walk_number(bit_op, 1);
+    field->splicing_point = bitoper_walk_number(bit_op, 1);
+    field->private_data = bitoper_walk_number(bit_op, 1);
+    field->adapt_extension = bitoper_walk_number(bit_op, 1);
     return TRUE;
 }
 
@@ -180,7 +205,7 @@ bool tsdecoder_get_data(transport_stream* ts, char* buff, int buff_length) {
 }
 
 // Prints out decoded paket headers in order they came from input FILE*.
-void tsdecoder_print_pakets(transport_stream* ts) {
+void tsdecoder_print_packets(transport_stream* ts) {
     ts_packet_header packet_header;
     ts_packet_header* p_hdr = &packet_header;
     ts_adaptation_field adapt_field;

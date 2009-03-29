@@ -63,7 +63,7 @@ transport_stream* tsdecoder_new(char* filename, int pid);
 void tsdecoder_free(transport_stream** ts);
 bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header);
 bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* field);
-void tsdecoder_print_pakets(transport_stream* ts);
+void tsdecoder_print_packets(transport_stream* ts);
 bool tsdecoder_get_byte(transport_stream* ts, char* buff);
 bool tsdecoder_get_data(transport_stream* ts, char* buff, int buff_length);
 
