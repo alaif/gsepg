@@ -12,9 +12,9 @@
 
 void tsdecoder_print_tsheader(ts_packet_header* p_hdr) {
     printfdbg(
-        "TS PH: pid=%d sync=0x%x tei=%d pusi=%d tp=%d scram=%d adapt=%d payload=%d cont=%d", 
+        "TS PH: pid=%d sync=0x47 tei=%d pusi=%d tp=%d scram=%d adapt=%d payload=%d cont=%d", 
         p_hdr->pid, 
-        p_hdr->sync,
+        //p_hdr->sync,
         p_hdr->tei, 
         p_hdr->pusi,
         p_hdr->tp,
@@ -40,15 +40,13 @@ void tsdecoder_print_tsheader_adapt(ts_adaptation_field* a_field) {
     );
 }
 
-transport_stream* tsdecoder_new(char* filename, int pid) {
-    transport_stream* ts;
+bool tsdecoder_init(transport_stream* ts, char* filename, int pid) {
     FILE *fo;
-    //TODO check file valid path/existence
-    fo = fopen(filename, "rb");
-	ts = (transport_stream*) malloc(sizeof(transport_stream));
-    if (ts == NULL) {
-        printferr(_("Memory allocation failed when creating transport_stream."));
-        exit(EXIT_MEM);
+    if (strcmp(filename, "-") == 0) {
+        fo = stdin;
+    } else if ( (fo = fopen(filename, "rb")) == NULL) {
+        printferr("Cannot open file [%s]", filename);
+        return FALSE;
     }
     ts->pid = pid;
     ts->filename = filename;
@@ -59,7 +57,7 @@ transport_stream* tsdecoder_new(char* filename, int pid) {
     ts->position = 1;
     ts->start_found = FALSE;
     ts->end_reached = FALSE;
-    return ts;
+    return TRUE;
 }
 
 void tsdecoder_free(transport_stream** ts) {
@@ -67,6 +65,20 @@ void tsdecoder_free(transport_stream** ts) {
     fclose(p_ts->fo);
 	free((void*) *ts);
 	*ts = NULL;
+}
+
+transport_stream* tsdecoder_new(char* filename, int pid) {
+    transport_stream* ts;
+	ts = (transport_stream*) malloc(sizeof(transport_stream));
+    if (ts == NULL) {
+        printferr(_("Memory allocation failed when creating transport_stream."));
+        return NULL;
+    }
+    if (!tsdecoder_init(ts, filename, pid)) {
+        tsdecoder_free(&ts);
+        return NULL;
+    }
+    return ts;
 }
 
 static bool tsdecoder_is_packet_start(char b) {
@@ -83,19 +95,10 @@ bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header) {
         return FALSE;
     }
     //printfdbg("Header: %02x %02x %02x %02x", buff[0], buff[1], buff[2], buff[3]);
-    /*header->sync = buff[0];
-    header->pid = (buff[1] << 8 | buff[2]) & 0x1fff;
-    header->tei = buff[1] & 0x80 ? 1 : 0;
-    header->pusi = buff[1] & 0x40 ? 1 : 0;
-    header->tp = buff[1] & 0x20 ? 1 : 0;
-    header->scram = (buff[3] & 0xc0) >> 6;
-    header->adapt = buff[3] & 0x40 ? 1 : 0;
-    header->payload = buff[3] & 0x10 ? 1 : 0;
-    header->continuity = buff[3] & 0xf;*/
     bitoper _bit_op;
     bitoper* bit_op = &_bit_op;
     bitoper_init(bit_op, buff, TSPACKET_HEADER_SIZE * 8);
-    header->sync = bitoper_walk_number(bit_op, 8);
+    //header->sync = bitoper_walk_number(bit_op, 8); //disabling this due to fseek problem when reading stdin.
     header->tei = bitoper_walk_number(bit_op, 1);
     header->pusi = bitoper_walk_number(bit_op, 1);
     header->tp = bitoper_walk_number(bit_op, 1);
@@ -115,15 +118,6 @@ bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* fi
     if (status != one_element) {
         return FALSE;
     }
-    /*field->length = buff[0];
-    field->discontinuity = buff[1] & 0x80 ? 1: 0;
-    field->random = buff[1] & 0x40 ? 1: 0;
-    field->es_priority = buff[1] & 0x20 ? 1: 0;
-    field->pcr = buff[1] & 0x10 ? 1: 0;
-    field->opcr = buff[1] & 0x8 ? 1: 0;
-    field->splicing_point = buff[1] & 0x4 ? 1: 0;
-    field->private_data = buff[1] & 0x2 ? 1: 0;
-    field->adapt_extension = buff[1] & 0x1 ? 1: 0;*/
     bitoper _bit_op;
     bitoper* bit_op = &_bit_op;
     bitoper_init(bit_op, buff, TSPACKET_ADAPT_FIELD_SIZE * 8);
@@ -149,10 +143,10 @@ void tsdecoder_fill_buffer(transport_stream* ts) {
     int i;
     ts->position = 1;
     ts->buffer_length = 0;
-    for (i = 0; i < TSPAYLOAD_BUFFER_SIZE; i++) ts->buffer[i] = '\0';
+    memset(ts->buffer, '\0', TSPAYLOAD_BUFFER_SIZE);
+    printfdbg("filling tsdecoder's buffer...");
     while ( fread(&b, byte_len, one_element, ts->fo) == one_element ) {
         if ( !tsdecoder_is_packet_start(b) ) continue;
-        fseek(ts->fo, -1, SEEK_CUR);
         // load packet header, if unavailable (false) go to next byte
         found = tsdecoder_packet_header(ts, p_hdr);
         if ( !found ) continue;
@@ -160,9 +154,10 @@ void tsdecoder_fill_buffer(transport_stream* ts) {
         if (status != one_element) break; // no packets left to read (whole packets)
         // don't care scrambled packets, packets without payload (are they usable for reading EPG?)
         if (p_hdr->pid != EPG_GETSTREAM_PID || p_hdr->scram) continue;
-        if ( p_hdr->pusi == 0 && !ts->start_found ) continue;
-        // adaptation field (optional) is set
+        //don't need this here (possibly loss of information) if ( p_hdr->pusi == 0 && !ts->start_found ) continue;
+        // filter packets with adaptation field (optional) set to 0x01
         if (p_hdr->adapt == 1) continue;
+        // TODO watch continuity field!
 
         tsdecoder_print_tsheader(p_hdr);
         ts->start_found = TRUE;
@@ -174,6 +169,7 @@ void tsdecoder_fill_buffer(transport_stream* ts) {
         // buffer is filled enough
         if (ts->buffer_length + TSPACKET_PAYLOAD_SIZE >= TSPAYLOAD_BUFFER_SIZE) break;
     }
+    printfdbg("tsdecoder's buffer filled.");
     /*printfdbg("Buffer filled, ts->buffer_length=%d", ts->buffer_length);
     for (i = 0; i < ts->buffer_length; i++) printf("%c", ts->buffer[i]);*/
 }

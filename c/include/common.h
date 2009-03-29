@@ -15,6 +15,7 @@ typedef int bool;
 #define EXIT_ARGS        1
 #define EXIT_ARGS_FILE   2
 #define EXIT_MEM         3  // exiting due to system has not enough memory for malloc() etc.
+#define EXIT_IO          4
 // i18n
 #define I18N_PACKAGE    "gsepg" 
 #define I18N_LOCALEDIR  "./locale"

@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define TSPAYLOAD_BUFFER_SIZE   4096
+#define TSPAYLOAD_BUFFER_SIZE   32768
 typedef struct{
     int pid;
 	char* filename;
@@ -23,7 +23,7 @@ typedef struct{
 // packet header
 typedef struct {
     // sync Byte
-    unsigned char sync   : 8;          // 0x47
+    //unsigned char sync   : 8;          // 0x47
     // 2 Bytes
     unsigned char tei    : 1;          // transport error indicator
     unsigned char pusi   : 1;          // payload unit start indicator
@@ -35,7 +35,7 @@ typedef struct {
     unsigned char payload: 1;          // payload data exist in packet
     unsigned char continuity: 4;       // packet continuity counter
 } ts_packet_header; // (3 Bytes + 1 Byte 0x47 sync = total 4 Bytes)
-#define TSPACKET_HEADER_SIZE   4
+#define TSPACKET_HEADER_SIZE   3
 #define TSPACKET_PAYLOAD_SIZE  184 // 188 - 4 (ts_packet_header + sync byte)
 
 // optional adaptation field
@@ -60,6 +60,7 @@ typedef struct {
 
 
 transport_stream* tsdecoder_new(char* filename, int pid);
+bool tsdecoder_init(transport_stream* ts, char* filename, int pid);
 void tsdecoder_free(transport_stream** ts);
 bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header);
 bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* field);

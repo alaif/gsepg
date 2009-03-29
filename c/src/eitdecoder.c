@@ -24,7 +24,7 @@ bool eitdecoder_decode(eitable* eit, char* buff) {
     int i;
     bitoper _bit_op;
     bitoper* bit_op = &_bit_op;
-    printfdbg("EIT data:");
+    printf("EIT data:");
     for (i = 0; i < EITABLE_SIZE; i++) printf("%02x ", buff[i]);
     printf("\n");
 
@@ -44,8 +44,9 @@ bool eitdecoder_decode(eitable* eit, char* buff) {
     eit->segment_last_section_number = bitoper_walk_number(bit_op, 8);
     eit->segment_last_table_id = bitoper_walk_number(bit_op, 8);
     printfdbg("EIT table_id=%02x", eit->table_id);
-	if( dvb_crc32((long*)buff, 184) != 0)  {
-        printfdbg("EIT crc error.");
+    long crc_result = dvb_crc32((long*)buff, 184);
+	if( crc_result != 0)  {
+        printfdbg("EIT crc error. result=%ld", crc_result);
     }
 
     return TRUE;

@@ -52,13 +52,17 @@ void handle_sig(int sig) {
 
 
 void decode(char *filename) {
-    transport_stream* ts;
+    transport_stream tab_ts;
+    transport_stream* ts = &tab_ts;
     eitable tab_eit;
     eitable *eit = &tab_eit;
     char some[EITABLE_SIZE];
     bool result;
-    ts = tsdecoder_new(filename, EPG_GETSTREAM_PID);
-    printfdbg("TS instance created.");
+    result = tsdecoder_init(ts, filename, EPG_GETSTREAM_PID);
+    if (!result) {
+        printferr("TS decoder init failed.");
+        return;
+    }
 
     // find all EIT headers
     while( (result = tsdecoder_get_data(ts, some, EITABLE_SIZE)) == TRUE ) {
@@ -68,9 +72,6 @@ void decode(char *filename) {
         ts->position += (TSPACKET_PAYLOAD_SIZE - EITABLE_SIZE);
     }
     //tsdecoder_print_packets(ts);
-
-    tsdecoder_free(&ts);
-    printfdbg("TS instance destroyed.");
 }
 
 
