@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#define TSPACKET_STUFFING_BYTE        0xff // used to fill unused bytes of TS packets. (packets are fixed length)
 
 // Structure of packet header and adaptation field can be found on http://en.wikipedia.org/wiki/MPEG_transport_stream
 // packet header

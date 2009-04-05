@@ -22,7 +22,7 @@ httpfilter: $(FILTER_OBJECTS)
 
 # Executable and object files for epgextract utility.
 EXE_EPGEXTRACT=gsepg-extract
-EPGEXTRACT_OBJECTS=dbglib.o extract.o tsdecoder.o eitdecoder.o bitoper.o crc32.o
+EPGEXTRACT_OBJECTS=dbglib.o tsdecoder.o eitdecoder.o bitoper.o crc32.o extract.o
 epgextract: $(EPGEXTRACT_OBJECTS) 
 	$(CC) $(EPGEXTRACT_OBJECTS) -o $(EXE_EPGEXTRACT) $(LIBS)
 

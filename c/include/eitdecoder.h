@@ -7,6 +7,8 @@ extern "C" {
 
 #include "../include/tsdecoder.h"
 
+
+
 typedef struct {
    unsigned int table_id                               :8;
    unsigned int section_syntax_indicator               :1;
@@ -24,10 +26,11 @@ typedef struct {
    unsigned int segment_last_table_id                  :8;
 } eitable;
 #define EITABLE_SIZE 14
+#define EITABLE_SL_REMAINING   10   // 10 bytes remaining after section_length field.
 
 
 typedef struct {
-   unsigned int event_id_hi                            :16;
+   unsigned int event_id                               :16;
    unsigned int mjd                                    :16;
    unsigned int start_time_h                           :8;
    unsigned int start_time_m                           :8;
@@ -105,7 +108,9 @@ typedef struct {
 
 
 bool eitdecoder_detect_eit(ts_packet* packet);
-bool eitdecoder_decode(eitable* eit, char* buff);
+bool eitdecoder_table(ts_packet *packet, eitable *eit);
+void eitdecoder_decode_event(char *payload, eitable_event *evt);
+bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable *eit);
 
 #ifdef __cplusplus
 }

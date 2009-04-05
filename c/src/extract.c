@@ -54,9 +54,8 @@ void handle_sig(int sig) {
 void decode(char *filename) {
     transport_stream tab_ts;
     transport_stream* ts = &tab_ts;
-    eitable tab_eit;
-    eitable *eit = &tab_eit;
-    ts_packet pac;
+    ts_packet packetts;
+    ts_packet* pac = &packetts;
     bool result;
     int i;
 
@@ -67,13 +66,24 @@ void decode(char *filename) {
     }
 
     // find all EIT headers
-    while ( (result = tsdecoder_get_packet(ts, &pac)) == TRUE ) {
-        if( eitdecoder_detect_eit(&pac) ) {
-            printf("EIT:");
-            for (i = 0; i < TSPACKET_PAYLOAD_SIZE; i++) printf("%c", pac.payload[i]);
-            printf("\n");
+    while ( (result = tsdecoder_get_packet(ts, pac)) == TRUE ) {
+        if ( eitdecoder_detect_eit(pac) ) {
+            eitable tab_eit;
+            eitable *eit = &tab_eit;
+            eitdecoder_table(pac, eit);
+            printfdbg(
+                    "EIT header: table=%02x section_length=%d, ssi=%d, sec_no=%d, last_sec_no=%d", 
+                    eit->table_id, 
+                    eit->section_length, 
+                    eit->section_syntax_indicator,
+                    eit->section_number,
+                    eit->last_section_number
+            );
+            eitdecoder_events(ts, pac, eit);
+            /*printf("EIT:");
+            for (i = 0; i < TSPACKET_PAYLOAD_SIZE; i++) printf("%c", pac->payload[i]);
+            printf("\n");*/
         }
-        ts->position++;
     }
     //tsdecoder_print_packets(ts);
 }

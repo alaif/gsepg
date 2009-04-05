@@ -178,6 +178,7 @@ bool tsdecoder_get_packet(transport_stream* ts, ts_packet* packet) {
         ts->end_reached = TRUE;
         return FALSE;
     }
+    printfdbg("Packet on position %d", ts->position-1);
     *packet = ts->buffer[ts->position - 1];
     ts->position++; 
     return TRUE;
