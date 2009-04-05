@@ -49,7 +49,7 @@ typedef struct {
 // TS packet
 typedef struct {
     ts_packet_header header;
-    char payload[TSPACKET_PAYLOAD_SIZE];
+    unsigned char payload[TSPACKET_PAYLOAD_SIZE];
 } ts_packet;
 
 // TS representation

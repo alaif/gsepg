@@ -35,7 +35,7 @@ bool eitdecoder_detect_eit(ts_packet* packet) {
 bool eitdecoder_table(ts_packet *packet, eitable *eit) {
     bitoper _bit_op;
     bitoper* bit_op = &_bit_op;
-    char *payload = packet->payload; payload++; //ommitting 0x00 pointer byte.
+    unsigned char *payload = packet->payload; payload++; //ommitting 0x00 pointer byte.
 
     bitoper_init(bit_op, payload, EITABLE_SIZE * 8);
     eit->table_id = bitoper_walk_number(bit_op, 8);
@@ -60,7 +60,7 @@ bool eitdecoder_table(ts_packet *packet, eitable *eit) {
     return TRUE;
 }
 
-void eitdecoder_decode_event(char *payload, eitable_event *evt) {
+void eitdecoder_decode_event(unsigned char *payload, eitable_event *evt) {
     bitoper _bit_op;
     bitoper* bit_op = &_bit_op;
     bitoper_init(bit_op, payload, EITABLE_EVENT_SIZE * 8);
@@ -77,7 +77,7 @@ void eitdecoder_decode_event(char *payload, eitable_event *evt) {
     evt->descriptors_loop_length = bitoper_walk_number(bit_op, 12);
 }
 
-void eitdecoder_event_descriptors(char *section_data, int total_len) {
+void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
     eitable_event _evt;
     eitable_event *evt = &_evt;
     int read_len = 0;
@@ -152,9 +152,9 @@ bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable 
     ts_packet* pac = &packetts;
     int total_len = eit->section_length - EITABLE_SL_REMAINING;
     int read_len = 0;
-    char *payload = current_packet->payload;
-    char section_data[4096]; // 4096 bytes is section_data max length permitted by ETSI spec.
-    char *section_data_pos = section_data;
+    unsigned char *payload = current_packet->payload;
+    unsigned char section_data[4096]; // 4096 bytes is section_data max length permitted by ETSI spec.
+    unsigned char *section_data_pos = section_data;
 
     payload += EITABLE_SIZE + 1; // skip EIT header and one Pointer byte.
 

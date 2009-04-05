@@ -109,7 +109,7 @@ typedef struct {
 
 bool eitdecoder_detect_eit(ts_packet* packet);
 bool eitdecoder_table(ts_packet *packet, eitable *eit);
-void eitdecoder_decode_event(char *payload, eitable_event *evt);
+void eitdecoder_decode_event(unsigned char *payload, eitable_event *evt);
 bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable *eit);
 
 #ifdef __cplusplus

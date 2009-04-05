@@ -79,14 +79,14 @@ transport_stream* tsdecoder_new(char* filename, int pid) {
     return ts;
 }
 
-static bool tsdecoder_is_packet_start(char b) {
+static bool tsdecoder_is_packet_start(unsigned char b) {
     return (b == 0x47);
 }
 
 
 bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header) {
     size_t status, one_element = 1;
-    char buff[TSPACKET_HEADER_SIZE];
+    unsigned char buff[TSPACKET_HEADER_SIZE];
     // load packet header
     status = fread(buff, TSPACKET_HEADER_SIZE, one_element, ts->fo);
     if (status != one_element) {
@@ -110,7 +110,7 @@ bool tsdecoder_packet_header(transport_stream* ts, ts_packet_header* header) {
 
 bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* field) {
     size_t status, one_element = 1;
-    char buff[TSPACKET_ADAPT_FIELD_SIZE];
+    unsigned char buff[TSPACKET_ADAPT_FIELD_SIZE];
     // load adaptation field
     status = fread(buff, TSPACKET_ADAPT_FIELD_SIZE, one_element, ts->fo);
     if (status != one_element) {
@@ -133,8 +133,8 @@ bool tsdecoder_packet_header_adapt(transport_stream* ts, ts_adaptation_field* fi
 
 void tsdecoder_fill_buffer(transport_stream* ts) {
     ts_packet_header* p_hdr;
-    char b;
-    char payload[TSPACKET_PAYLOAD_SIZE];
+    unsigned char b;
+    unsigned char payload[TSPACKET_PAYLOAD_SIZE];
     size_t status, byte_len = 1, one_element = 1;
     bool found;
     int i;
@@ -190,8 +190,8 @@ void tsdecoder_print_packets(transport_stream* ts) {
     ts_packet_header* p_hdr = &packet_header;
     ts_adaptation_field adapt_field;
     ts_adaptation_field* a_field = &adapt_field;
-    char b;
-    char payload[TSPACKET_PAYLOAD_SIZE];
+    unsigned char b;
+    unsigned char payload[TSPACKET_PAYLOAD_SIZE];
     size_t status, byte_len = 1, one_element = 1;
     bool found;
     while ( fread(&b, byte_len, one_element, ts->fo) == one_element ) {
