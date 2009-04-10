@@ -57,7 +57,6 @@ void decode(char *filename) {
     ts_packet packetts;
     ts_packet* pac = &packetts;
     bool result;
-    int i;
 
     result = tsdecoder_init(ts, filename, EPG_GETSTREAM_PID);
     if (!result) {

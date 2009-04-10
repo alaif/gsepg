@@ -7,6 +7,17 @@ extern "C" {
 
 #include "../include/tsdecoder.h"
 
+// Descriptors (selected ones)
+#define DESC_SHORT_EVENT         0x4d
+#define SHORT_EVENT_LANG_AND_NAME   (24 + 8)  // byte length
+#define DESC_EXTENDED_EVENT      0x4e
+#define DESC_PARETAL_RATING      0x55
+#define DESCRIPTOR_HANDLER_COUNT 1
+
+typedef struct {
+    unsigned char tag; //descriptor tag (i.e. DESC_SHORT_EVENT)
+    void (*callback)(int tag, int length, const unsigned char *data);
+} descriptor_handler;
 
 
 typedef struct {

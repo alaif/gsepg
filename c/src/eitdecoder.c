@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <wchar.h>
 // i18n
 #include <libintl.h>
 #include <locale.h>
@@ -11,6 +13,10 @@
 #include "../include/eitdecoder.h"
 #include "../include/bitoper.h"
 #include "../include/crc32.h"
+#include "../include/dvbchar.h"
+
+bool descriptor_handlers_registered = FALSE;
+descriptor_handler descriptor_handlers[DESCRIPTOR_HANDLER_COUNT];
 
 /*
 1) actual TS, present/following event information = table_id = "0x4E";
@@ -26,7 +32,7 @@ bool eitdecoder_detect_eit(ts_packet* packet) {
     unsigned char pointer = packet->payload[0];
     unsigned char table_id = packet->payload[1];
     if (pointer != 0) return FALSE;
-    printfdbg("EIT table found? pointer=%02x table_id=%02x", pointer, table_id);
+    printfdbg("EIT table found: pointer=%02x table_id=%02x", pointer, table_id);
     return TRUE;
 }
 
@@ -77,16 +83,76 @@ void eitdecoder_decode_event(unsigned char *payload, eitable_event *evt) {
     evt->descriptors_loop_length = bitoper_walk_number(bit_op, 12);
 }
 
+// -----------------------------------------------
+// Descriptor callbacks, registration and dispatch
+// -----------------------------------------------
+
+// short event descriptor described in ETSI EN 300 468, page 69
+void descriptor_short_event(int tag, int length, const unsigned char *data) {
+    printfdbg("SHORT EVENT DESC. length=%d", length);
+    int i;
+    char *event_data;
+    bitoper _bit_op;
+    bitoper* bit_op = &_bit_op;
+    bitoper_init(bit_op, data, SHORT_EVENT_LANG_AND_NAME * 8);
+
+    long lang = bitoper_walk_number(bit_op, 24);
+    int name_len = bitoper_walk_number(bit_op, 8);
+    event_data = data + (SHORT_EVENT_LANG_AND_NAME/8);
+    for (i = 0; i < name_len; i++) {
+        if (!isalpha(event_data[i])) {
+            printf(".");
+        } else{
+            printf("%c", event_data[i]);
+        }
+    }
+    event_data += name_len;
+    int text_len = (int)event_data[0];
+    char text[255];
+    char decoded[255];
+    event_data++;
+    printfdbg("copying event_data to text, len=%d", text_len);
+    memcpy(text, event_data, text_len);
+    dvbchar_decode(text, decoded, text_len);
+    printfdbg("Decoded iso6937/2: %s", decoded);
+}
+
+// Register all descriptor handlers
+void eitdecoder_descriptor_handler_registration() {
+    if (descriptor_handlers_registered) 
+        return;
+    descriptor_handler *hdl = descriptor_handlers;
+    // short event descriptor
+    hdl->tag = DESC_SHORT_EVENT;
+    hdl->callback = descriptor_short_event;
+    hdl++;
+    // TODO other descriptor callback registrations place here..
+    descriptor_handlers_registered = TRUE;
+}
+
+void eitdecoder_descriptor_dispatcher(int tag, int length, const unsigned char *data) {
+    eitdecoder_descriptor_handler_registration(); // perform registration if neccessary
+    int i;
+    descriptor_handler *hdl = descriptor_handlers;
+    for (i = 0; i < DESCRIPTOR_HANDLER_COUNT; i++) {
+        if (hdl->tag == tag) {
+            hdl->callback(tag, length, data);
+            return;
+        }
+        hdl++;
+    }
+    printfdbg("Unregistered handler for descriptor %02x len=%d", tag, length);
+}
+
+// Iterating over descriptors within EIT Events
 void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
     eitable_event _evt;
     eitable_event *evt = &_evt;
     int read_len = 0;
-    int i;
     unsigned char *payload;
-    // Iterating over descriptors and EIT Events
     payload = section_data;
     while (read_len < total_len) {
-        // 12 bytes of EIT event table, page 25
+        // 12 bytes of EIT event table (ETSI EN 300 468: page 25)
         eitdecoder_decode_event(payload, evt);
         printfdbg(
           "Event id=%d running=%d free_ca=%d desc_length=%d",
@@ -101,18 +167,18 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
         while (desc_read_len < evt->descriptors_loop_length) {
             unsigned char descriptor_tag = payload[0];
             if (descriptor_tag == TSPACKET_STUFFING_BYTE) {
-                // stuffing data occured
+                // stuffing data occured, skip them all (TODO optimalization -> change read_len
+                // to total_len and break, due to stuffing data occurs only at the end of packet payload.
+                // Verify this approach first.)
                 desc_read_len++;
                 continue;
             }
             unsigned char descriptor_len = payload[1];
             payload += 2; // move to descriptor data only for convenience
             desc_read_len += 2;
-            printfdbg("Descriptor %02x len=%d", descriptor_tag, descriptor_len);
-            for (i = 0; i < descriptor_len; i++) {
-                //printf("%02x ", payload[i]);
-                desc_read_len++;
-            }
+            // for descriptor coding see EN 300 468, page 31
+            eitdecoder_descriptor_dispatcher(descriptor_tag, descriptor_len, payload);
+            desc_read_len += descriptor_len;
         }
         read_len += desc_read_len;
         // move pointer to the next event
@@ -149,27 +215,34 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
 // Descriptors in EIT described in ETSI TR 101 211, page 26. Technical specification in ETSI EN 300 468.
 bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable *eit) {
     ts_packet packetts;
-    ts_packet* pac = &packetts;
+    ts_packet *pac = &packetts;
     int total_len = eit->section_length - EITABLE_SL_REMAINING;
     int read_len = 0;
+    bool error_flag = FALSE;
     unsigned char *payload = current_packet->payload;
     unsigned char section_data[4096]; // 4096 bytes is section_data max length permitted by ETSI spec.
     unsigned char *section_data_pos = section_data;
 
-    payload += EITABLE_SIZE + 1; // skip EIT header and one Pointer byte.
+    payload += EITABLE_SIZE + 1; // skip EIT header and the Pointer byte.
 
     // Loading all data "section length" long.
-    section_data_pos += TSPACKET_PAYLOAD_SIZE - read_len;
-    memcpy(section_data, payload, TSPACKET_PAYLOAD_SIZE - read_len); // copy remaining data from packet at actual position
-    read_len = EITABLE_SIZE + 1;
-    printfdbg("Remaining packet data copied.");
+    read_len = TSPACKET_PAYLOAD_SIZE - (EITABLE_SIZE + 1); // remaining payload data length
+    section_data_pos += read_len;
+    memcpy(section_data, payload, read_len); // copy remaining data from packet at actual position
+    printfdbg("Remaining packet data copied. len=%d", read_len);
     while (read_len < total_len) {
-        if (!tsdecoder_get_packet(ts, pac)) break;
+        if (!tsdecoder_get_packet(ts, pac)) {
+            printferr("tsdecoder was unable to get TS packet.");
+            error_flag = TRUE;
+            break;
+        }
         memcpy(section_data_pos, pac->payload, TSPACKET_PAYLOAD_SIZE);
         section_data_pos += TSPACKET_PAYLOAD_SIZE;
         read_len += TSPACKET_PAYLOAD_SIZE;
         //printfdbg("Added next packet's payload to section_data.");
     }
+    if (error_flag) 
+        return FALSE;
     printfdbg("section_data read_len=%d total_len=%d", read_len, total_len);
     eitdecoder_event_descriptors(section_data, total_len);
     return TRUE;
