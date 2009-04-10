@@ -22,7 +22,7 @@ httpfilter: $(FILTER_OBJECTS)
 
 # Executable and object files for epgextract utility.
 EXE_EPGEXTRACT=gsepg-extract
-EPGEXTRACT_OBJECTS=dbglib.o tsdecoder.o eitdecoder.o bitoper.o crc32.o extract.o
+EPGEXTRACT_OBJECTS=dbglib.o tsdecoder.o eitdecoder.o dvbchar.o bitoper.o crc32.o extract.o
 epgextract: $(EPGEXTRACT_OBJECTS) 
 	$(CC) $(EPGEXTRACT_OBJECTS) -o $(EXE_EPGEXTRACT) $(LIBS)
 
@@ -61,12 +61,15 @@ crc32.o: ../src/crc32.c
 wstring.o: ../src/wstring.c
 	$(CC_MODULE) ../src/wstring.c
 
-tsdecoder.o: ../src/tsdecoder.c ../include/bitoper.h ../include/dbglib.h ../include/common.h
+tsdecoder.o: ../include/tsdecoder.h ../src/tsdecoder.c ../include/bitoper.h ../include/dbglib.h ../include/common.h
 	$(CC_MODULE) ../src/tsdecoder.c
 
-eitdecoder.o: ../src/eitdecoder.c ../include/bitoper.h ../include/dbglib.h ../include/common.h \
-../include/crc32.h
+eitdecoder.o: ../include/eitdecoder.h ../src/eitdecoder.c ../include/bitoper.h ../include/dbglib.h ../include/common.h \
+../include/crc32.h ../include/dvbchar.h
 	$(CC_MODULE) ../src/eitdecoder.c
+
+dvbchar.o: ../src/dvbchar.c ../include/dvbchar.h
+	$(CC_MODULE) ../src/dvbchar.c
 
 extract.o:	../src/extract.c ../include/dbglib.h ../include/common.h ../include/tsdecoder.h \
 ../include/eitdecoder.h 
