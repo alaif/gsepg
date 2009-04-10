@@ -2,7 +2,7 @@
 #include "../include/bitoper.h"
 #include "../include/dbglib.h"
 
-void bitoper_init(bitoper* op, char* buff, int length) {
+void bitoper_init(bitoper* op, unsigned char* buff, int length) {
     op->read_bits = 0;
     op->total_read_bits = 0;
     op->data_position = 0;
@@ -10,7 +10,7 @@ void bitoper_init(bitoper* op, char* buff, int length) {
     op->bit_length = length;
 }
 
-int bitoper_get_number(char* data, int bit_len, int offset) {
+int bitoper_get_number(unsigned char* data, int bit_len, int offset) {
     // TODO this function is not required for epgextract project at the moment
     return 0;
 }
