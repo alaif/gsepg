@@ -52,7 +52,7 @@ void printferr(const char *format, ...) {
 	va_start(ap, format);
 	vfprintf(stderr, format, ap);
 	va_end(ap); 
-	printf("\n");
+	fprintf(stderr, "\n");
 }
 
 // EOF
