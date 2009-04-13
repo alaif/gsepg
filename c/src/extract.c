@@ -57,6 +57,7 @@ void decode(char *filename) {
     ts_packet packetts;
     ts_packet* pac = &packetts;
     bool result;
+    bool eit_result;
 
     result = tsdecoder_init(ts, filename, EPG_GETSTREAM_PID);
     if (!result) {
@@ -78,7 +79,11 @@ void decode(char *filename) {
                     eit->section_number,
                     eit->last_section_number
             );
-            eitdecoder_events(ts, pac, eit);
+            eit_result = eitdecoder_events(ts, pac, eit);
+            if (!eit_result) {
+                printferr("Problem decoding events, aborting EIT decoding procedure.");
+                break;
+            }
             /*printf("EIT:");
             for (i = 0; i < TSPACKET_PAYLOAD_SIZE; i++) printf("%c", pac->payload[i]);
             printf("\n");*/
