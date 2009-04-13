@@ -2,6 +2,8 @@
 #include "../include/bitoper.h"
 #include "../include/dbglib.h"
 
+int bitoper_err;
+
 void bitoper_init(bitoper* op, unsigned char* buff, int length) {
     op->read_bits = 0;
     op->total_read_bits = 0;
@@ -23,6 +25,7 @@ int bitoper_get_bit(bitoper* op) {
     }
     if (op->total_read_bits == op->bit_length) {
         printferr("No bits left to read.");
+        bitoper_err = BITOPER_NO_BITS_LEFT;
         return 0;
     }
     int bits_to_read;
@@ -37,10 +40,12 @@ int bitoper_get_bit(bitoper* op) {
 int bitoper_walk_number(bitoper* op, int bit_len) {
     int out = 0;
     int i;
+    bitoper_err = BITOPER_OK;
     for (i = bit_len; i > 0; i--) {
         if (bitoper_get_bit(op) == 1) {
             out += 0x1 << (i - 1);
         }
+        if ( bitoper_err != BITOPER_OK) break;
     }
     return out;
 }
