@@ -8,7 +8,7 @@ THRFLAGS =  -D__USE_REENTRANT
 THRLIB = -lpthread 
 #LIBS= -lm
 LIBS=
-CC = cc -Wall $(DEBUG)
+CC = cc -fexec-charset=utf-8 -Wall $(DEBUG)
 CC_MODULE = $(CC) -c
 
 # Project (builds all executables)
