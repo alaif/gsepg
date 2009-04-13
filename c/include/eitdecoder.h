@@ -8,15 +8,21 @@ extern "C" {
 #include "../include/tsdecoder.h"
 
 // Descriptors (selected ones)
+#define DESC_NETWORK_NAME        0x40
 #define DESC_SHORT_EVENT         0x4d
 #define SHORT_EVENT_LANG_AND_NAME   (24 + 8)  // byte length
 #define DESC_EXTENDED_EVENT      0x4e
+#define EXTENDED_EVENT_HEADER    5            // byte length
+#define DESC_COMPONENT           0x50
+#define DESC_CONTENT             0x54
 #define DESC_PARETAL_RATING      0x55
-#define DESCRIPTOR_HANDLER_COUNT 1
+#define DESC_PDC                 0x69
+#define PARENTAL_COUNTRY_AND_RATING 4         // byte length (24b + 8b)
+#define DESCRIPTOR_HANDLER_COUNT    3         // number of descriptor registrations
 
 typedef struct {
     unsigned char tag; //descriptor tag (i.e. DESC_SHORT_EVENT)
-    void (*callback)(int tag, int length, const unsigned char *data);
+    void (*callback)(int tag, int length, unsigned char *data);
 } descriptor_handler;
 
 
@@ -122,6 +128,8 @@ bool eitdecoder_detect_eit(ts_packet* packet);
 bool eitdecoder_table(ts_packet *packet, eitable *eit);
 void eitdecoder_decode_event(unsigned char *payload, eitable_event *evt);
 bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable *eit);
+void eitdecoder_output(const char *, ...);
+void eitdecoder_raw_data(const unsigned char *data, int len);
 
 #ifdef __cplusplus
 }

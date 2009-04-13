@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <wchar.h>
+#include <time.h>
 // i18n
 #include <libintl.h>
 #include <locale.h>
@@ -17,6 +19,35 @@
 
 bool descriptor_handlers_registered = FALSE;
 descriptor_handler descriptor_handlers[DESCRIPTOR_HANDLER_COUNT];
+
+void eitdecoder_output(const char *format, ...) {
+	va_list ap; 
+	va_start(ap, format);
+	//vfprintf(stderr, format, ap);
+	va_end(ap); 
+	//fprintf(stderr, "\n");
+    //TODO write this function
+}
+
+void eitdecoder_raw_data(const unsigned char *data, int len) {
+    int i;
+    char *pdata;
+    pdata = (char*)malloc(len + 1);
+    if (pdata == NULL) {
+        // fail silently, this is debug func. only
+        return;
+    }
+    memcpy(pdata, data, len);
+    for (i = 0; i < len; i++) {
+        if (!isalpha(pdata[i]))
+            pdata[i] = '.';
+    }
+    pdata[len] = '\0'; // better safe than sorry
+    printfdbg("Raw data: [%s]", pdata);
+    free((void*)pdata);
+    pdata = NULL;
+}
+
 
 /*
 1) actual TS, present/following event information = table_id = "0x4E";
@@ -88,33 +119,127 @@ void eitdecoder_decode_event(unsigned char *payload, eitable_event *evt) {
 // -----------------------------------------------
 
 // short event descriptor described in ETSI EN 300 468, page 69
-void descriptor_short_event(int tag, int length, const unsigned char *data) {
-    printfdbg("SHORT EVENT DESC. length=%d", length);
-    int i;
-    char *event_data;
+void descriptor_short_event(int tag, int length, unsigned char *data) {
+    printfdbg("=== BEGIN OF SHORT EVENT DESC. length=%d", length);
+    unsigned char *event_data;
     bitoper _bit_op;
     bitoper* bit_op = &_bit_op;
     bitoper_init(bit_op, data, SHORT_EVENT_LANG_AND_NAME * 8);
 
-    long lang = bitoper_walk_number(bit_op, 24);
+    char lang[4];
+    lang[0] = bitoper_walk_number(bit_op, 8);
+    lang[1] = bitoper_walk_number(bit_op, 8);
+    lang[2] = bitoper_walk_number(bit_op, 8);
+    lang[3] = '\0';
     int name_len = bitoper_walk_number(bit_op, 8);
     event_data = data + (SHORT_EVENT_LANG_AND_NAME/8);
-    for (i = 0; i < name_len; i++) {
-        if (!isalpha(event_data[i])) {
-            printf(".");
-        } else{
-            printf("%c", event_data[i]);
-        }
-    }
+
+    unsigned char text[255];
+    wchar_t decoded[255];
+    // event name
+    memset(text, '\0', 255);
+    memcpy(text, event_data, name_len);
+    printfdbg("copying event_name to text, lang=%s, len=%d, text=[%s]", lang, name_len, text);
+    dvbchar_decode(text, decoded, name_len);
+    printfdbg("Name (decoded iso6937/2): %ls", decoded);
+    // event description
     event_data += name_len;
     int text_len = (int)event_data[0];
-    char text[255];
-    char decoded[255];
+    if (text_len == 0) {
+        printfdbg("No event data.");
+        printfdbg("--- END");
+        return;
+    }
     event_data++;
-    printfdbg("copying event_data to text, len=%d", text_len);
+    printfdbg("copying event_data to text, lang=%s, len=%d", lang, text_len);
     memcpy(text, event_data, text_len);
     dvbchar_decode(text, decoded, text_len);
-    printfdbg("Decoded iso6937/2: %s", decoded);
+    printfdbg("Text (decoded iso6937/2): %ls", decoded);
+    printfdbg("--- END");
+}
+
+// Network name descriptor
+void descriptor_parental(int tag, int length, unsigned char *data) {
+    printfdbg("=== BEGIN PARENTAL RATING DESC. len=%d", length);
+    bitoper _bit_op;
+    bitoper* bit_op = &_bit_op;
+    unsigned char *event_data;
+    int i;
+    char country_code[4];
+    int rating;
+    int sec_length = length / PARENTAL_COUNTRY_AND_RATING;
+    event_data = data;
+    country_code[3] = '\0';
+    for (i = 0; i < sec_length; i++) {
+        bitoper_init(bit_op, event_data, PARENTAL_COUNTRY_AND_RATING * 8);
+        country_code[0] = bitoper_walk_number(bit_op, 8);
+        country_code[1] = bitoper_walk_number(bit_op, 8);
+        country_code[2] = bitoper_walk_number(bit_op, 8);
+        rating = bitoper_walk_number(bit_op, 8);
+        if (rating >= 0x01 && rating <= 0x0F) {
+            printfdbg("in country [%s] the content is not recommended under age %d", country_code, rating + 3);
+        } else if (rating == 0) {
+            printfdbg("No rating for country [%s].", country_code);
+        } else {
+            printfdbg("Custom defined rating=%d (0x%02x).", rating, rating);
+        }
+        event_data += PARENTAL_COUNTRY_AND_RATING;
+    }
+    printfdbg("--- END");
+}
+
+// Extended event descriptor
+void descriptor_extended_event(int tag, int length, unsigned char *data) {
+    printfdbg("=== BEGIN EXTENDED EVENT DESC. len=%d", length);
+    unsigned char *event_data;
+    bitoper _bit_op;
+    bitoper* bit_op = &_bit_op;
+    bitoper_init(bit_op, data, EXTENDED_EVENT_HEADER * 8);
+    int descriptor_number = bitoper_walk_number(bit_op, 4);
+    int last_descriptor_number = bitoper_walk_number(bit_op, 4);
+    char lang[4];
+    lang[0] = bitoper_walk_number(bit_op, 8);
+    lang[1] = bitoper_walk_number(bit_op, 8);
+    lang[2] = bitoper_walk_number(bit_op, 8);
+    lang[3] = '\0';
+    int items_length = bitoper_walk_number(bit_op, 8);
+    if (bitoper_err != BITOPER_OK) printferr("Bitoper problem %s:%d", __FILE__, __LINE__);
+    printfdbg("desc_no=%d  last_desc_no=%d", descriptor_number, last_descriptor_number);
+    event_data = data;
+    event_data += EXTENDED_EVENT_HEADER;
+    int i = 0;
+    printfdbg("items_length=%d", items_length);
+    while (i <= items_length) {
+        wchar_t decoded[255];
+        unsigned char item_desc[255];
+        int item_desc_length = (int)event_data[0];
+        //if (item_desc_length >= items_length) break;
+        event_data++;
+        i++;
+        memcpy(item_desc, event_data, item_desc_length);
+        event_data += item_desc_length;
+        i += item_desc_length;
+        item_desc[item_desc_length] = '\0';
+        printfdbg("len=%d item_desc=[%s] ", item_desc_length, item_desc);
+
+        int item_length = (int)event_data[0];
+        unsigned char item[255];
+        //if (item_length >= items_length) break;
+        event_data++;
+        i++;
+        memcpy(item, event_data, item_length);
+        event_data += item_length;
+        i += item_length;
+        item[item_length] = '\0';
+        printfdbg("len=%d item=[%s] ", item_length, item);
+        if (item_desc_length > 0)  {
+            dvbchar_decode(item_desc, decoded, item_desc_length);
+            printfdbg("item_desc (decoded iso6937/2): %ls", decoded);
+        }
+        dvbchar_decode(item, decoded, item_length);
+        printfdbg("item (decoded iso6937/2): %ls", decoded);
+    }
+    printfdbg("--- END");
 }
 
 // Register all descriptor handlers
@@ -126,11 +251,19 @@ void eitdecoder_descriptor_handler_registration() {
     hdl->tag = DESC_SHORT_EVENT;
     hdl->callback = descriptor_short_event;
     hdl++;
+    // network descriptor
+    hdl->tag = DESC_PARETAL_RATING;
+    hdl->callback = descriptor_parental;
+    hdl++;
+    // extended event descriptor
+    hdl->tag = DESC_EXTENDED_EVENT;
+    hdl->callback = descriptor_extended_event;
+    hdl++;
     // TODO other descriptor callback registrations place here..
     descriptor_handlers_registered = TRUE;
 }
 
-void eitdecoder_descriptor_dispatcher(int tag, int length, const unsigned char *data) {
+void eitdecoder_descriptor_dispatcher(int tag, int length, unsigned char *data) {
     eitdecoder_descriptor_handler_registration(); // perform registration if neccessary
     int i;
     descriptor_handler *hdl = descriptor_handlers;
@@ -142,6 +275,7 @@ void eitdecoder_descriptor_dispatcher(int tag, int length, const unsigned char *
         hdl++;
     }
     printfdbg("Unregistered handler for descriptor %02x len=%d", tag, length);
+    eitdecoder_raw_data(data, length);
 }
 
 // Iterating over descriptors within EIT Events
@@ -151,11 +285,13 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
     int read_len = 0;
     unsigned char *payload;
     payload = section_data;
+    printfdbg("section_data len=%d", total_len);
+    eitdecoder_raw_data(section_data, total_len);
     while (read_len < total_len) {
         // 12 bytes of EIT event table (ETSI EN 300 468: page 25)
         eitdecoder_decode_event(payload, evt);
         printfdbg(
-          "Event id=%d running=%d free_ca=%d desc_length=%d",
+          "= Event id=%d running=%d free_ca=%d desc_length=%d",
           evt->event_id,
           evt->running_status,
           evt->free_ca_mode,
@@ -176,15 +312,25 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
             unsigned char descriptor_len = payload[1];
             payload += 2; // move to descriptor data only for convenience
             desc_read_len += 2;
-            // for descriptor coding see EN 300 468, page 31
+            // for descriptor coding see ETSI EN 300 468, page 31
             eitdecoder_descriptor_dispatcher(descriptor_tag, descriptor_len, payload);
             desc_read_len += descriptor_len;
+            payload += descriptor_len;
         }
-        read_len += desc_read_len;
+        // old read_len += desc_read_len;
+        read_len += evt->descriptors_loop_length;
         // move pointer to the next event
-        payload += desc_read_len;
+        // old payload += desc_read_len;
+        printfdbg("- Event id=%d end.", evt->event_id);
     }
 }
+
+// 0x40 6.2.27 Network name descriptor ... page 64
+// 0x55 6.2.28 Parental Descriptor ... page
+// 0x54 6.2.9  Content Descriptor ... page 39 (genres, etc.)
+// 0x4e 6.2.15 Extended event descriptor ... page 50
+// 0x7f 6.2.16 Extension descriptor ... page 51
+// Image icon descriptor ... page 78
 
 // From ETSI EN 300 468, page 18, table 2:
 // ---- EIT:
@@ -245,5 +391,6 @@ bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable 
         return FALSE;
     printfdbg("section_data read_len=%d total_len=%d", read_len, total_len);
     eitdecoder_event_descriptors(section_data, total_len);
+    if (bitoper_err != BITOPER_OK) return FALSE; // during event descriptor hanlding bitoper error occured => affects eitdecoder
     return TRUE;
 }
