@@ -17,8 +17,13 @@ extern "C" {
 #define DESC_CONTENT             0x54
 #define DESC_PARETAL_RATING      0x55
 #define DESC_PDC                 0x69
+#define PDC_LENGTH               3            // byte length
 #define PARENTAL_COUNTRY_AND_RATING 4         // byte length (24b + 8b)
-#define DESCRIPTOR_HANDLER_COUNT    3         // number of descriptor registrations
+
+#define DESCRIPTOR_HANDLER_COUNT    4         // number of descriptor registrations
+
+// macro suitable for time information conversion
+#define bcdtoint(i) ((((i & 0xf0) >> 4) * 10) + (i & 0x0f))
 
 typedef struct {
     unsigned char tag; //descriptor tag (i.e. DESC_SHORT_EVENT)
