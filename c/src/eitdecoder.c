@@ -158,7 +158,23 @@ void descriptor_short_event(int tag, int length, unsigned char *data) {
     printfdbg("--- END");
 }
 
-// Network name descriptor
+// PDC descriptor, ETSI EN 300 468, page 65
+void descriptor_pdc(int tag, int length, unsigned char *data) {
+    printfdbg("=== BEGIN PDC DESC. len=%d", length);
+    bitoper _bit_op;
+    bitoper* bit_op = &_bit_op;
+    bitoper_init(bit_op, data, PDC_LENGTH * 8);
+    bitoper_walk_number(bit_op, 4); // reserved 4b for future use
+    // PIL ... program identification label
+    int day = bitoper_walk_number(bit_op, 5);
+    int month = bitoper_walk_number(bit_op, 4);
+    int hour = bitoper_walk_number(bit_op, 5);
+    int minute = bitoper_walk_number(bit_op, 6);
+    printfdbg("PDC raw: day=%d month=%d hour=%d minute=%d", day, month, hour, minute);
+    printfdbg("--- END");
+}
+
+// Parental lock descriptor
 void descriptor_parental(int tag, int length, unsigned char *data) {
     printfdbg("=== BEGIN PARENTAL RATING DESC. len=%d", length);
     bitoper _bit_op;
@@ -259,6 +275,10 @@ void eitdecoder_descriptor_handler_registration() {
     hdl->tag = DESC_EXTENDED_EVENT;
     hdl->callback = descriptor_extended_event;
     hdl++;
+    // PDC descriptor ... something like VPS system, useful for capturing movies from DVB at time.
+    hdl->tag = DESC_PDC;
+    hdl->callback = descriptor_pdc;
+    hdl++;
     // TODO other descriptor callback registrations place here..
     descriptor_handlers_registered = TRUE;
 }
@@ -276,6 +296,23 @@ void eitdecoder_descriptor_dispatcher(int tag, int length, unsigned char *data) 
     }
     printfdbg("Unregistered handler for descriptor %02x len=%d", tag, length);
     eitdecoder_raw_data(data, length);
+}
+
+
+// Get y-m-d from modified julian date, algorithm specified in ETSI EN 300 468, page 99
+void eitdecoder_decode_mjd(int julian) {
+    long int mjd = julian;
+    int year = (int) ((mjd - 15078.2) / 365.25);
+    int month = (int) ((mjd - 14956.1 - (int) (year * 365.25)) / 30.6001);
+    int day = mjd - 14956 - (int) (year * 365.25) - (int) (month * 30.6001);
+    int i;
+    if (month == 14 || month == 15)
+        i = 1;
+    else
+        i = 0;
+    year += i +1900;
+    month = month - 1 - (i * 12);
+    printfdbg("Event mjd: year=%d month=%d day=%d", year, month, day);
 }
 
 // Iterating over descriptors within EIT Events
@@ -296,6 +333,17 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
           evt->running_status,
           evt->free_ca_mode,
           evt->descriptors_loop_length
+        );
+        // TODO date/time
+        eitdecoder_decode_mjd(evt->mjd);
+        printfdbg(
+            "Start: %02d:%02d:%02d   duration: %02d:%02d:%02d",
+            bcdtoint(evt->start_time_h),
+            bcdtoint(evt->start_time_m),
+            bcdtoint(evt->start_time_s),
+            bcdtoint(evt->duration_h),
+            bcdtoint(evt->duration_m),
+            bcdtoint(evt->duration_s)
         );
         read_len += EITABLE_EVENT_SIZE;
         payload += EITABLE_EVENT_SIZE;
@@ -390,6 +438,7 @@ bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable 
     if (error_flag) 
         return FALSE;
     printfdbg("section_data read_len=%d total_len=%d", read_len, total_len);
+    eitdecoder_output("\"service_id\": ", eit->service_id);
     eitdecoder_event_descriptors(section_data, total_len);
     if (bitoper_err != BITOPER_OK) return FALSE; // during event descriptor hanlding bitoper error occured => affects eitdecoder
     return TRUE;
