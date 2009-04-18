@@ -17,16 +17,35 @@
 #include "../include/crc32.h"
 #include "../include/dvbchar.h"
 
+// descriptor handler registration array
 bool descriptor_handlers_registered = FALSE;
 descriptor_handler descriptor_handlers[DESCRIPTOR_HANDLER_COUNT];
+// output
+FILE *output_stream;
+bool output_stream_set = FALSE;
+int output_indent = 0;
+
+void eitdecoder_set_output_stream(FILE *ostream) {
+    output_stream = ostream;
+    output_stream_set = TRUE;
+}
+
+void eitdecoder_output_indent_add(int addition) {
+    output_indent += addition;
+    if (output_indent < 0)
+        output_indent = 0;
+}
 
 void eitdecoder_output(const char *format, ...) {
 	va_list ap; 
 	va_start(ap, format);
-	//vfprintf(stderr, format, ap);
+    if (output_stream_set) {
+        int i;
+        for (i = 1; i <= output_indent; i++)
+            fprintf(output_stream, " ");
+        vfprintf(output_stream, format, ap);
+    }
 	va_end(ap); 
-	//fprintf(stderr, "\n");
-    //TODO write this function
 }
 
 void eitdecoder_raw_data(const unsigned char *data, int len) {
@@ -119,6 +138,11 @@ void eitdecoder_decode_event(unsigned char *payload, eitable_event *evt) {
 // -----------------------------------------------
 
 // short event descriptor described in ETSI EN 300 468, page 69
+// Output:
+// "id": "short event",
+// "name": "event name",
+// "lang": "language",
+// "text": "event text, if present"
 void descriptor_short_event(int tag, int length, unsigned char *data) {
     printfdbg("=== BEGIN OF SHORT EVENT DESC. length=%d", length);
     unsigned char *event_data;
@@ -142,6 +166,9 @@ void descriptor_short_event(int tag, int length, unsigned char *data) {
     printfdbg("copying event_name to text, lang=%s, len=%d, text=[%s]", lang, name_len, text);
     dvbchar_decode(text, decoded, name_len);
     printfdbg("Name (decoded iso6937/2): %ls", decoded);
+    eitdecoder_output("\"id\": \"short event\",\n");
+    eitdecoder_output("\"name\": \"%ls\",\n", decoded);
+    eitdecoder_output("\"lang\": \"%s\",\n", lang);
     // event description
     event_data += name_len;
     int text_len = (int)event_data[0];
@@ -155,10 +182,17 @@ void descriptor_short_event(int tag, int length, unsigned char *data) {
     memcpy(text, event_data, text_len);
     dvbchar_decode(text, decoded, text_len);
     printfdbg("Text (decoded iso6937/2): %ls", decoded);
+    eitdecoder_output("\"text\": \"%ls\"\n", decoded);
     printfdbg("--- END");
 }
 
 // PDC descriptor, ETSI EN 300 468, page 65
+// Output:
+// "id": "pdc",
+// "day": 20,
+// "month": 4,
+// "hour": 10,
+// "minute": 58
 void descriptor_pdc(int tag, int length, unsigned char *data) {
     printfdbg("=== BEGIN PDC DESC. len=%d", length);
     bitoper _bit_op;
@@ -171,10 +205,18 @@ void descriptor_pdc(int tag, int length, unsigned char *data) {
     int hour = bitoper_walk_number(bit_op, 5);
     int minute = bitoper_walk_number(bit_op, 6);
     printfdbg("PDC raw: day=%d month=%d hour=%d minute=%d", day, month, hour, minute);
+    eitdecoder_output("\"id\": \"pdc\",\n");
+    eitdecoder_output("\"day\": %d,\n", day);
+    eitdecoder_output("\"month\": %d,\n", month);
+    eitdecoder_output("\"hour\": %d,\n", hour);
+    eitdecoder_output("\"minute\": %d\n", minute);
     printfdbg("--- END");
 }
 
-// Parental lock descriptor
+// Parental rating descriptor
+// Output:
+// "id": "parental rating",
+// "ratings": [{"country": "CZE", "age": 90, "custom": 1}, {"country": "GER", "age": 18}]
 void descriptor_parental(int tag, int length, unsigned char *data) {
     printfdbg("=== BEGIN PARENTAL RATING DESC. len=%d", length);
     bitoper _bit_op;
@@ -186,25 +228,48 @@ void descriptor_parental(int tag, int length, unsigned char *data) {
     int sec_length = length / PARENTAL_COUNTRY_AND_RATING;
     event_data = data;
     country_code[3] = '\0';
+    eitdecoder_output("\"id\": \"parental rating\",\n");
+    eitdecoder_output("\"ratings\": [\n");
+    eitdecoder_output_indent_add(OUTPUT_INDENT);
     for (i = 0; i < sec_length; i++) {
+        eitdecoder_output("{\n");
+        eitdecoder_output_indent_add(OUTPUT_INDENT);
+
         bitoper_init(bit_op, event_data, PARENTAL_COUNTRY_AND_RATING * 8);
         country_code[0] = bitoper_walk_number(bit_op, 8);
         country_code[1] = bitoper_walk_number(bit_op, 8);
         country_code[2] = bitoper_walk_number(bit_op, 8);
         rating = bitoper_walk_number(bit_op, 8);
+        eitdecoder_output("\"country\": \"%s\",\n", country_code);
         if (rating >= 0x01 && rating <= 0x0F) {
             printfdbg("in country [%s] the content is not recommended under age %d", country_code, rating + 3);
+            eitdecoder_output("\"age\": %d\n", rating + 3);
         } else if (rating == 0) {
             printfdbg("No rating for country [%s].", country_code);
+            eitdecoder_output("\"age\": 0\n");
         } else {
             printfdbg("Custom defined rating=%d (0x%02x).", rating, rating);
+            eitdecoder_output("\"age\": %d,\n", rating);
+            eitdecoder_output("\"custom\": 1\n");
         }
         event_data += PARENTAL_COUNTRY_AND_RATING;
+        eitdecoder_output_indent_add(-OUTPUT_INDENT);
+        if ((i + 1) < sec_length) {
+            eitdecoder_output("},\n");
+        } else  {
+            eitdecoder_output("}\n");
+        }
     }
+    eitdecoder_output_indent_add(-OUTPUT_INDENT);
+    eitdecoder_output("]\n");
     printfdbg("--- END");
 }
 
 // Extended event descriptor
+// Output:
+// "id": "extended event",
+// "descriptor_number": 0,
+// "last_descriptor_number": 10,
 void descriptor_extended_event(int tag, int length, unsigned char *data) {
     printfdbg("=== BEGIN EXTENDED EVENT DESC. len=%d", length);
     unsigned char *event_data;
@@ -219,14 +284,22 @@ void descriptor_extended_event(int tag, int length, unsigned char *data) {
     lang[2] = bitoper_walk_number(bit_op, 8);
     lang[3] = '\0';
     int items_length = bitoper_walk_number(bit_op, 8);
-    if (bitoper_err != BITOPER_OK) printferr("Bitoper problem %s:%d", __FILE__, __LINE__);
     printfdbg("desc_no=%d  last_desc_no=%d", descriptor_number, last_descriptor_number);
     event_data = data;
     event_data += EXTENDED_EVENT_HEADER;
     int i = 0;
     printfdbg("items_length=%d", items_length);
+    // output
+    eitdecoder_output("\"id\": \"extended event\",\n");
+    eitdecoder_output("\"descriptor_number\": %d,\n", descriptor_number);
+    eitdecoder_output("\"last_descriptor_number\": %d,\n", last_descriptor_number);
+    eitdecoder_output("[\n");
+    eitdecoder_output_indent_add(OUTPUT_INDENT);
+    wchar_t decoded[255];
+
     while (i <= items_length) {
-        wchar_t decoded[255];
+        eitdecoder_output("{\n");
+        eitdecoder_output_indent_add(OUTPUT_INDENT);
         unsigned char item_desc[255];
         int item_desc_length = (int)event_data[0];
         //if (item_desc_length >= items_length) break;
@@ -251,10 +324,25 @@ void descriptor_extended_event(int tag, int length, unsigned char *data) {
         if (item_desc_length > 0)  {
             dvbchar_decode(item_desc, decoded, item_desc_length);
             printfdbg("item_desc (decoded iso6937/2): %ls", decoded);
+            eitdecoder_output("\"description\": \"%ls\",\n", decoded);
         }
         dvbchar_decode(item, decoded, item_length);
         printfdbg("item (decoded iso6937/2): %ls", decoded);
+        eitdecoder_output("\"item\": \"%ls\"\n", decoded);
+        eitdecoder_output_indent_add(-OUTPUT_INDENT);
+        eitdecoder_output("},\n");
     }
+    // optional text field
+    int text_length = (int)event_data[0];
+    unsigned char text[255];
+    event_data++;
+    memcpy(text, event_data, text_length);
+    dvbchar_decode(text, decoded, text_length);
+    printfdbg("len=%d text=[%s]", text_length, text);
+    eitdecoder_output("\"text\": \"%ls\"\n", decoded);
+
+    eitdecoder_output_indent_add(-OUTPUT_INDENT);
+    eitdecoder_output("]\n");
     printfdbg("--- END");
 }
 
@@ -283,36 +371,47 @@ void eitdecoder_descriptor_handler_registration() {
     descriptor_handlers_registered = TRUE;
 }
 
-void eitdecoder_descriptor_dispatcher(int tag, int length, unsigned char *data) {
+bool eitdecoder_descriptor_dispatcher(int tag, int length, unsigned char *data) {
     eitdecoder_descriptor_handler_registration(); // perform registration if neccessary
     int i;
     descriptor_handler *hdl = descriptor_handlers;
     for (i = 0; i < DESCRIPTOR_HANDLER_COUNT; i++) {
         if (hdl->tag == tag) {
+            // prepare JSON dict for descriptor's output
+            eitdecoder_output("\"descriptor\": {\n");
+            eitdecoder_output_indent_add(OUTPUT_INDENT);
             hdl->callback(tag, length, data);
-            return;
+
+            eitdecoder_output_indent_add(-OUTPUT_INDENT);
+            eitdecoder_output("}\n");
+            return TRUE;
         }
         hdl++;
     }
     printfdbg("Unregistered handler for descriptor %02x len=%d", tag, length);
     eitdecoder_raw_data(data, length);
+    return FALSE;
 }
 
 
 // Get y-m-d from modified julian date, algorithm specified in ETSI EN 300 468, page 99
-void eitdecoder_decode_mjd(int julian) {
+void eitdecoder_decode_mjd(int julian, int *year, int *month, int *day) {
     long int mjd = julian;
-    int year = (int) ((mjd - 15078.2) / 365.25);
-    int month = (int) ((mjd - 14956.1 - (int) (year * 365.25)) / 30.6001);
-    int day = mjd - 14956 - (int) (year * 365.25) - (int) (month * 30.6001);
+    *year = (int) ((mjd - 15078.2) / 365.25);
+    *month = (int) ((mjd - 14956.1 - (int) (*year * 365.25)) / 30.6001);
+    *day = mjd - 14956 - (int) (*year * 365.25) - (int) (*month * 30.6001);
     int i;
-    if (month == 14 || month == 15)
+    if (*month == 14 || *month == 15)
         i = 1;
     else
         i = 0;
-    year += i +1900;
-    month = month - 1 - (i * 12);
-    printfdbg("Event mjd: year=%d month=%d day=%d", year, month, day);
+    *year += i +1900;
+    *month = *month - 1 - (i * 12);
+    printfdbg("Event mjd: year=%d month=%d day=%d", *year, *month, *day);
+}
+
+bool _event_loop_condition(int total_len, int read_len) {
+    return (read_len < total_len && (total_len - read_len) >= EITABLE_EVENT_SIZE);
 }
 
 // Iterating over descriptors within EIT Events
@@ -320,13 +419,20 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
     eitable_event _evt;
     eitable_event *evt = &_evt;
     int read_len = 0;
+    int year, month, day;
     unsigned char *payload;
     payload = section_data;
     printfdbg("section_data len=%d", total_len);
     eitdecoder_raw_data(section_data, total_len);
-    while (read_len < total_len) {
+
+    eitdecoder_output("\"events\": [\n");
+    eitdecoder_output_indent_add(OUTPUT_INDENT);
+
+    while (_event_loop_condition(total_len, read_len)) {
         // 12 bytes of EIT event table (ETSI EN 300 468: page 25)
         eitdecoder_decode_event(payload, evt);
+        read_len += EITABLE_EVENT_SIZE;
+        payload += EITABLE_EVENT_SIZE;
         printfdbg(
           "= Event id=%d running=%d free_ca=%d desc_length=%d",
           evt->event_id,
@@ -334,8 +440,20 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
           evt->free_ca_mode,
           evt->descriptors_loop_length
         );
-        // TODO date/time
-        eitdecoder_decode_mjd(evt->mjd);
+        // date/time
+        eitdecoder_decode_mjd(evt->mjd, &year, &month, &day);
+        if (year < 1999 || month < 0 || day < 0) {
+            read_len += evt->descriptors_loop_length;
+            payload += evt->descriptors_loop_length;
+            continue;
+        }
+        // output
+        eitdecoder_output("{\n");
+        eitdecoder_output_indent_add(OUTPUT_INDENT);
+
+        eitdecoder_output("\"running_status\": %d,\n", evt->running_status);
+        eitdecoder_output("\"free_ca_mode\": %d,\n", evt->free_ca_mode);
+        eitdecoder_output("\"date\": \"%04d-%02d-%02d\",\n", year, month, day);
         printfdbg(
             "Start: %02d:%02d:%02d   duration: %02d:%02d:%02d",
             bcdtoint(evt->start_time_h),
@@ -345,9 +463,20 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
             bcdtoint(evt->duration_m),
             bcdtoint(evt->duration_s)
         );
-        read_len += EITABLE_EVENT_SIZE;
-        payload += EITABLE_EVENT_SIZE;
+        eitdecoder_output(
+            "\"start_time\": \"%02d:%02d:%02d\",\n", 
+            bcdtoint(evt->start_time_h),
+            bcdtoint(evt->start_time_m),
+            bcdtoint(evt->start_time_s)
+        );
+        eitdecoder_output(
+            "\"duration\": \"%02d:%02d:%02d\",\n", 
+            bcdtoint(evt->duration_h),
+            bcdtoint(evt->duration_m),
+            bcdtoint(evt->duration_s)
+        );
         int desc_read_len = 0;
+        bool desc_result;
         while (desc_read_len < evt->descriptors_loop_length) {
             unsigned char descriptor_tag = payload[0];
             if (descriptor_tag == TSPACKET_STUFFING_BYTE) {
@@ -355,22 +484,33 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
                 // to total_len and break, due to stuffing data occurs only at the end of packet payload.
                 // Verify this approach first.)
                 desc_read_len++;
+                read_len++; //added 20090415
+                payload++; //added 20090415
                 continue;
             }
             unsigned char descriptor_len = payload[1];
             payload += 2; // move to descriptor data only for convenience
             desc_read_len += 2;
             // for descriptor coding see ETSI EN 300 468, page 31
-            eitdecoder_descriptor_dispatcher(descriptor_tag, descriptor_len, payload);
+            desc_result = eitdecoder_descriptor_dispatcher(descriptor_tag, descriptor_len, payload);
             desc_read_len += descriptor_len;
             payload += descriptor_len;
+            if (desc_result && desc_read_len < evt->descriptors_loop_length)
+                eitdecoder_output(",\n");
         }
-        // old read_len += desc_read_len;
         read_len += evt->descriptors_loop_length;
-        // move pointer to the next event
-        // old payload += desc_read_len;
         printfdbg("- Event id=%d end.", evt->event_id);
+        eitdecoder_output_indent_add(-OUTPUT_INDENT);
+        if (_event_loop_condition(total_len, read_len)) {
+            eitdecoder_output("},\n");
+        } else { 
+            // last item
+            eitdecoder_output("}\n");
+        }
     }
+
+    eitdecoder_output_indent_add(-OUTPUT_INDENT);
+    eitdecoder_output("]\n");
 }
 
 // 0x40 6.2.27 Network name descriptor ... page 64
@@ -424,6 +564,19 @@ bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable 
     section_data_pos += read_len;
     memcpy(section_data, payload, read_len); // copy remaining data from packet at actual position
     printfdbg("Remaining packet data copied. len=%d", read_len);
+
+    eitdecoder_output("{\n");
+    eitdecoder_output_indent_add(OUTPUT_INDENT);
+    eitdecoder_output("\"service_id\": %d,\n", eit->service_id);
+    eitdecoder_output("\"version_number\": %d,\n", eit->version_number);
+    if (eit->table_id == EITABLE_PRESENT_FOLLOWING_ACTUAL_TS ||
+        eit->table_id == EITABLE_PRESENT_FOLLOWING_OTHER_TS) {
+        eitdecoder_output("\"section\": \"present/following\",\n");
+    } else if (eit->table_id >= EITABLE_SCHEDULE_ACTUAL_TS_MIN &&
+               eit->table_id <= EITABLE_SCHEDULE_OTHER_TS_MAX) {
+        eitdecoder_output("\"section\": \"schedule\",\n");
+    }
+
     while (read_len < total_len) {
         if (!tsdecoder_get_packet(ts, pac)) {
             printferr("tsdecoder was unable to get TS packet.");
@@ -435,11 +588,22 @@ bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable 
         read_len += TSPACKET_PAYLOAD_SIZE;
         //printfdbg("Added next packet's payload to section_data.");
     }
-    if (error_flag) 
+    if (error_flag) {
+        // finish output section
+        // empty events section in JSON when error occured
+        eitdecoder_event_descriptors("", 0);
+        eitdecoder_output_indent_add(-OUTPUT_INDENT);
+        eitdecoder_output("}\n");
         return FALSE;
+    }
     printfdbg("section_data read_len=%d total_len=%d", read_len, total_len);
-    eitdecoder_output("\"service_id\": ", eit->service_id);
+    // handle event descriptors
     eitdecoder_event_descriptors(section_data, total_len);
+
+    // finish output section
+    eitdecoder_output_indent_add(-OUTPUT_INDENT);
+    eitdecoder_output("}\n");
+    // handle bitoper error
     if (bitoper_err != BITOPER_OK) return FALSE; // during event descriptor hanlding bitoper error occured => affects eitdecoder
     return TRUE;
 }

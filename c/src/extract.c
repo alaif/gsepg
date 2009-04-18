@@ -1,11 +1,9 @@
 /*
-   extract.c
-
-   Jonas Fiala, EPG information extractor.
-
+ * extract.c
+ *
+ * Jonas Fiala, EPG information extractor.
+ *
  */
-
-
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -26,13 +24,16 @@
 #include "../include/tsdecoder.h"
 #include "../include/eitdecoder.h"
 
-
-//static int variable;
-
+char output_filename[1024];
+bool output_opened = FALSE;
+bool no_output = FALSE;
+FILE *output_fp;
 
 void print_usage(char **args) {
     printf(_("Usage:\n%s -h     prints this.\n"), args[0]);
-    printf(_("%s -v     enables verbose mode(i.e. printing debug messages).\n\n"), args[0]);
+    printf(_("%s -v     enables verbose mode(i.e. printing debug messages).\n"), args[0]);
+    printf(_("%s -o     output file. Use - for stdout (default option).\n"), args[0]);
+    printf(_("%s -n     no output (suitable for debugging purposes together with -v parameter).\n"), args[0]);
 	printf("\n");
 }
 
@@ -46,6 +47,10 @@ void handle_sig(int sig) {
 	} else {
 		printfdbg("Catched signal [%d]", sig);
 	}
+    if (output_opened) {
+        printfdbg("Output file closed.");
+        fclose(output_fp);
+    }
 	printfdbg("done. Bye!");
 	exit(0);
 }
@@ -65,31 +70,58 @@ void decode(char *filename) {
         return;
     }
 
+    // set output stream (file, stdout) by command line argument!
+    if (strlen(output_filename) > 0) {
+        if (strcmp("-", output_filename) == 0) {
+            eitdecoder_set_output_stream(stdout); 
+            output_opened = FALSE;
+        } else {
+            output_fp = fopen(output_filename, "w");
+            eitdecoder_set_output_stream(output_fp); 
+            output_opened = TRUE;
+        }
+    } else if (!no_output) {
+        eitdecoder_set_output_stream(stdout); 
+        output_opened = FALSE;
+    }
+    // top level JSON dict
+    eitdecoder_output("{\n");
+    eitdecoder_output_indent_add(OUTPUT_INDENT);
+    eitdecoder_output("\"data\": [\n");
+    eitdecoder_output_indent_add(OUTPUT_INDENT);
     // find all EIT headers
     while ( (result = tsdecoder_get_packet(ts, pac)) == TRUE ) {
-        if ( eitdecoder_detect_eit(pac) ) {
-            eitable tab_eit;
-            eitable *eit = &tab_eit;
-            eitdecoder_table(pac, eit);
-            printfdbg(
-                    "EIT header: table=%02x section_length=%d, ssi=%d, sec_no=%d, last_sec_no=%d", 
-                    eit->table_id, 
-                    eit->section_length, 
-                    eit->section_syntax_indicator,
-                    eit->section_number,
-                    eit->last_section_number
-            );
-            eit_result = eitdecoder_events(ts, pac, eit);
-            if (!eit_result) {
-                printferr("Problem decoding events, aborting EIT decoding procedure.");
-                break;
-            }
-            /*printf("EIT:");
-            for (i = 0; i < TSPACKET_PAYLOAD_SIZE; i++) printf("%c", pac->payload[i]);
-            printf("\n");*/
+        if ( !eitdecoder_detect_eit(pac) ) 
+            continue;
+        eitable tab_eit;
+        eitable *eit = &tab_eit;
+        eitdecoder_table(pac, eit);
+        printfdbg(
+                "EIT header: table=%02x section_length=%d, ssi=%d, sec_no=%d, last_sec_no=%d", 
+                eit->table_id, 
+                eit->section_length, 
+                eit->section_syntax_indicator,
+                eit->section_number,
+                eit->last_section_number
+        );
+        eit_result = eitdecoder_events(ts, pac, eit);
+        if (!eit_result) {
+            printferr("Problem decoding events, aborting EIT decoding procedure.");
+            break;
         }
+        eitdecoder_output(",\n");
+        /*printf("EIT:");
+        for (i = 0; i < TSPACKET_PAYLOAD_SIZE; i++) printf("%c", pac->payload[i]);
+        printf("\n");*/
     }
+    // end of top level JSON dict
+    eitdecoder_output_indent_add(-OUTPUT_INDENT);
+    eitdecoder_output("]\n");
+    eitdecoder_output_indent_add(-OUTPUT_INDENT);
+    eitdecoder_output("}\n");
     //tsdecoder_print_packets(ts);
+    if (output_opened)
+        fclose(output_fp);
 }
 
 
@@ -108,8 +140,9 @@ int main(int arg_count, char **args) {
     }
 
     opterr = 0;
+    output_filename[0] = '\0';
     int c;
-    while ( (c = getopt(arg_count, args, "vh")) != -1 ) {
+    while ( (c = getopt(arg_count, args, "vho:n")) != -1 ) {
         switch (c) {
             case 'v':
                 dbglib_set_verbose(1);
@@ -118,6 +151,16 @@ int main(int arg_count, char **args) {
             case 'h':
                 print_usage(args);
                 return 0;
+            case 'o':
+                if (strlen(optarg) > 1023) {
+                    printferr(_("filename is too long."));
+                    return EXIT_ARGS;
+                }
+                strcpy(output_filename, optarg);
+                break;
+            case 'n':
+                no_output = TRUE;
+                break;
             case '?':
                 if (optopt == 'X')
                    printferr(_("Option -%c requires an argument.\n"), optopt);

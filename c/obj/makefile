@@ -7,7 +7,7 @@ FORK = -D__FORK_MODE__
 THRFLAGS =  -D__USE_REENTRANT
 THRLIB = -lpthread 
 #LIBS= -lm
-LIBS=
+LIBS=-ljson
 CC = cc -fexec-charset=utf-8 -Wall $(DEBUG)
 CC_MODULE = $(CC) -c
 
@@ -18,7 +18,7 @@ project: epgextract httpfilter
 EXE_FILTER=gsepg-filter
 FILTER_OBJECTS=dbglib.o wstring.o mysocket.o filter.o
 httpfilter: $(FILTER_OBJECTS) 
-	$(CC) $(FILTER_OBJECTS) -o $(EXE_FILTER) $(LIBS)
+	$(CC) $(FILTER_OBJECTS) -o $(EXE_FILTER)
 
 # Executable and object files for epgextract utility.
 EXE_EPGEXTRACT=gsepg-extract

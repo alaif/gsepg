@@ -7,6 +7,8 @@ extern "C" {
 
 #include "../include/tsdecoder.h"
 
+#define OUTPUT_INDENT            4            // 4 spaces indent is default
+
 // Descriptors (selected ones)
 #define DESC_NETWORK_NAME        0x40
 #define DESC_SHORT_EVENT         0x4d
@@ -49,6 +51,12 @@ typedef struct {
 } eitable;
 #define EITABLE_SIZE 14
 #define EITABLE_SL_REMAINING   10   // 10 bytes remaining after section_length field.
+#define EITABLE_PRESENT_FOLLOWING_ACTUAL_TS            0x4e
+#define EITABLE_PRESENT_FOLLOWING_OTHER_TS             0x4f
+#define EITABLE_SCHEDULE_ACTUAL_TS_MIN                 0x50
+#define EITABLE_SCHEDULE_ACTUAL_TS_MAX                 0x5f
+#define EITABLE_SCHEDULE_OTHER_TS_MIN                  0x60
+#define EITABLE_SCHEDULE_OTHER_TS_MAX                  0x6f
 
 
 typedef struct {
@@ -134,6 +142,8 @@ bool eitdecoder_table(ts_packet *packet, eitable *eit);
 void eitdecoder_decode_event(unsigned char *payload, eitable_event *evt);
 bool eitdecoder_events(transport_stream *ts, ts_packet *current_packet, eitable *eit);
 void eitdecoder_output(const char *, ...);
+void eitdecoder_set_output_stream(FILE *ostream);
+void eitdecoder_output_indent_add(int addition);
 void eitdecoder_raw_data(const unsigned char *data, int len);
 
 #ifdef __cplusplus
