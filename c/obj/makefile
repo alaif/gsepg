@@ -7,7 +7,7 @@ FORK = -D__FORK_MODE__
 THRFLAGS =  -D__USE_REENTRANT
 THRLIB = -lpthread 
 #LIBS= -lm
-LIBS=-ljson
+LIBS=
 CC = cc -fexec-charset=utf-8 -Wall $(DEBUG)
 CC_MODULE = $(CC) -c
 

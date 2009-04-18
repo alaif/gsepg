@@ -175,6 +175,7 @@ void descriptor_short_event(int tag, int length, unsigned char *data) {
     if (text_len == 0) {
         printfdbg("No event data.");
         printfdbg("--- END");
+        eitdecoder_output("\"text\": \"\"\n", lang);
         return;
     }
     event_data++;
@@ -293,11 +294,11 @@ void descriptor_extended_event(int tag, int length, unsigned char *data) {
     eitdecoder_output("\"id\": \"extended event\",\n");
     eitdecoder_output("\"descriptor_number\": %d,\n", descriptor_number);
     eitdecoder_output("\"last_descriptor_number\": %d,\n", last_descriptor_number);
-    eitdecoder_output("[\n");
+    eitdecoder_output("\"descriptions\":[\n");
     eitdecoder_output_indent_add(OUTPUT_INDENT);
     wchar_t decoded[255];
 
-    while (i <= items_length) {
+    while (i <= items_length || i == 0) {
         eitdecoder_output("{\n");
         eitdecoder_output_indent_add(OUTPUT_INDENT);
         unsigned char item_desc[255];
@@ -313,7 +314,9 @@ void descriptor_extended_event(int tag, int length, unsigned char *data) {
 
         int item_length = (int)event_data[0];
         unsigned char item[255];
-        //if (item_length >= items_length) break;
+        if (item_length >= (items_length - item_desc_length)) {
+            item_length = 0;
+        }
         event_data++;
         i++;
         memcpy(item, event_data, item_length);
@@ -330,16 +333,20 @@ void descriptor_extended_event(int tag, int length, unsigned char *data) {
         printfdbg("item (decoded iso6937/2): %ls", decoded);
         eitdecoder_output("\"item\": \"%ls\"\n", decoded);
         eitdecoder_output_indent_add(-OUTPUT_INDENT);
-        eitdecoder_output("},\n");
+        if (i <= items_length) {
+            eitdecoder_output("},\n");
+        } else {
+            eitdecoder_output("}\n");
+        }
     }
     // optional text field
-    int text_length = (int)event_data[0];
+    /*int text_length = (int)event_data[0];
     unsigned char text[255];
     event_data++;
     memcpy(text, event_data, text_length);
     dvbchar_decode(text, decoded, text_length);
     printfdbg("len=%d text=[%s]", text_length, text);
-    eitdecoder_output("\"text\": \"%ls\"\n", decoded);
+    eitdecoder_output("\"text\": \"%ls\"\n", decoded);*/
 
     eitdecoder_output_indent_add(-OUTPUT_INDENT);
     eitdecoder_output("]\n");
@@ -377,13 +384,7 @@ bool eitdecoder_descriptor_dispatcher(int tag, int length, unsigned char *data) 
     descriptor_handler *hdl = descriptor_handlers;
     for (i = 0; i < DESCRIPTOR_HANDLER_COUNT; i++) {
         if (hdl->tag == tag) {
-            // prepare JSON dict for descriptor's output
-            eitdecoder_output("\"descriptor\": {\n");
-            eitdecoder_output_indent_add(OUTPUT_INDENT);
             hdl->callback(tag, length, data);
-
-            eitdecoder_output_indent_add(-OUTPUT_INDENT);
-            eitdecoder_output("}\n");
             return TRUE;
         }
         hdl++;
@@ -411,7 +412,7 @@ void eitdecoder_decode_mjd(int julian, int *year, int *month, int *day) {
 }
 
 bool _event_loop_condition(int total_len, int read_len) {
-    return (read_len < total_len && (total_len - read_len) >= EITABLE_EVENT_SIZE);
+    return (read_len < total_len && (total_len - read_len) > EITABLE_EVENT_SIZE);
 }
 
 // Iterating over descriptors within EIT Events
@@ -476,7 +477,8 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
             bcdtoint(evt->duration_s)
         );
         int desc_read_len = 0;
-        bool desc_result;
+        bool desc_result = FALSE;
+        bool previous_item = FALSE;
         while (desc_read_len < evt->descriptors_loop_length) {
             unsigned char descriptor_tag = payload[0];
             if (descriptor_tag == TSPACKET_STUFFING_BYTE) {
@@ -488,15 +490,24 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
                 payload++; //added 20090415
                 continue;
             }
+            if (previous_item)
+                eitdecoder_output(",\n");
             unsigned char descriptor_len = payload[1];
             payload += 2; // move to descriptor data only for convenience
             desc_read_len += 2;
+            // prepare JSON dict for descriptor's output
+            eitdecoder_output("\"descriptor\": {\n");
+            eitdecoder_output_indent_add(OUTPUT_INDENT);
+
             // for descriptor coding see ETSI EN 300 468, page 31
             desc_result = eitdecoder_descriptor_dispatcher(descriptor_tag, descriptor_len, payload);
+
+            eitdecoder_output_indent_add(-OUTPUT_INDENT);
+            eitdecoder_output("}\n");
+
             desc_read_len += descriptor_len;
             payload += descriptor_len;
-            if (desc_result && desc_read_len < evt->descriptors_loop_length)
-                eitdecoder_output(",\n");
+            previous_item = TRUE;
         }
         read_len += evt->descriptors_loop_length;
         printfdbg("- Event id=%d end.", evt->event_id);
