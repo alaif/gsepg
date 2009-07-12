@@ -24,6 +24,19 @@ descriptor_handler descriptor_handlers[DESCRIPTOR_HANDLER_COUNT];
 FILE *output_stream;
 bool output_stream_set = FALSE;
 int output_indent = 0;
+//  abort decoding before program exit
+bool abort_decode = FALSE;
+
+
+void eitdecoder_init() {
+    abort_decode = FALSE;
+    output_stream_set = FALSE;
+    output_indent = 0;
+}
+
+void eitdecoder_trigger_abort() {
+    abort_decode = TRUE;
+}
 
 void eitdecoder_set_output_stream(FILE *ostream) {
     output_stream = ostream;
@@ -328,6 +341,8 @@ void descriptor_extended_event(int tag, int length, unsigned char *data) {
             dvbchar_decode(item_desc, decoded, item_desc_length);
             printfdbg("item_desc (decoded iso6937/2): %ls", decoded);
             eitdecoder_output("\"description\": \"%ls\",\n", decoded);
+        } else {
+            eitdecoder_output("\"description\": \"\",\n");
         }
         dvbchar_decode(item, decoded, item_length);
         printfdbg("item (decoded iso6937/2): %ls", decoded);
@@ -479,6 +494,8 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
         int desc_read_len = 0;
         bool desc_result = FALSE;
         bool previous_item = FALSE;
+        eitdecoder_output("\"descriptors\": [\n");
+        eitdecoder_output_indent_add(OUTPUT_INDENT);
         while (desc_read_len < evt->descriptors_loop_length) {
             unsigned char descriptor_tag = payload[0];
             if (descriptor_tag == TSPACKET_STUFFING_BYTE) {
@@ -496,7 +513,7 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
             payload += 2; // move to descriptor data only for convenience
             desc_read_len += 2;
             // prepare JSON dict for descriptor's output
-            eitdecoder_output("\"descriptor\": {\n");
+            eitdecoder_output("{\n");
             eitdecoder_output_indent_add(OUTPUT_INDENT);
 
             // for descriptor coding see ETSI EN 300 468, page 31
@@ -509,9 +526,16 @@ void eitdecoder_event_descriptors(unsigned char *section_data, int total_len) {
             payload += descriptor_len;
             previous_item = TRUE;
         }
+        eitdecoder_output_indent_add(-OUTPUT_INDENT);
+        eitdecoder_output("]\n");
         read_len += evt->descriptors_loop_length;
         printfdbg("- Event id=%d end.", evt->event_id);
         eitdecoder_output_indent_add(-OUTPUT_INDENT);
+        // handle abort
+        if (abort_decode) {;
+            eitdecoder_output("}\n");
+            break;
+        }
         if (_event_loop_condition(total_len, read_len)) {
             eitdecoder_output("},\n");
         } else { 

@@ -93,7 +93,7 @@ void filter(char* filename) {
         return;
     }
     fseek(fo, 0, SEEK_SET);
-    fseek(fo, i + 2, SEEK_SET);
+    fseek(fo, payload + 2, SEEK_SET);
     while (fread(buff, FILTER_BUFF_SIZE, one_element, fo) == one_element) {
         for (i = 0; i < FILTER_BUFF_SIZE; i++) putchar(buff[i]);
     }

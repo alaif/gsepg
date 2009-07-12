@@ -74,25 +74,6 @@ typedef struct {
 } eitable_event;
 #define EITABLE_EVENT_SIZE 12
 
-/*
- *
- *    4) Running Status Table (RST):
- *
- *       - the RST gives the status of an event (running/not running). The RST
- *         updates this information and allows timely automatic switching to
- *         events.
- *
- */
-    /* TO BE DONE */
-/*
- *
- *    5) Time and Date Table (TDT):
- *
- *       - the TDT gives information relating to the present time and date.
- *         This information is given in a separate table due to the frequent
- *         updating of this information.
- *
- */
 
 
 typedef struct {
@@ -108,16 +89,6 @@ typedef struct {
    u_char utc_time_s                             :8;
 } timedatetable;
 #define TIMEDATETABLE_SIZE 8
-
-/*
- *
- *    6) Time Offset Table (TOT):
- *
- *       - the TOT gives information relating to the present time and date and
- *         local time offset. This information is given in a separate table due
- *         to the frequent updating of the time information.
- *
- */
 
 typedef struct {
    u_char table_id                               :8; 
@@ -145,6 +116,8 @@ void eitdecoder_output(const char *, ...);
 void eitdecoder_set_output_stream(FILE *ostream);
 void eitdecoder_output_indent_add(int addition);
 void eitdecoder_raw_data(const unsigned char *data, int len);
+void eitdecoder_trigger_abort();
+void eitdecoder_init();
 
 #ifdef __cplusplus
 }
