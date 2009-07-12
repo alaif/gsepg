@@ -1,2 +1,8 @@
+1. Read PID 0x00, parse Program map table.
+2. Remove hardcoded program mapping from example/htmlgenerator.py, it's ugly.
+3. dvbchar.c -- finish accent detection (all of them).
+
+---
+
 1. #ifdef __cplusplus ... #endif .. urobit makro, ktere to tam vydosazuje.
 2. dvbchar: zmenit can_output a zprehlednit (napsat si vlastni ispunct, ktery vylouci zavorky z true nebo tak neco).
