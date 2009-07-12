@@ -1,0 +1,108 @@
+#!/bin/bash
+#
+# Data Queue. Script saves once per time valid JSON output
+# to the output directory (set by script parameter).
+# Main purpose is to make reading of gsepg-extract's output a lot easier.
+# Thus it is possible to read file(s) from output directory and then delete them.
+# 
+# Script saves output files in following filename format:
+# /path/to/output_dir/epg_20090401.135232.json
+#      date format:       Y   m d  H M S
+#
+# Filenames can be easily detected by regexp or by .json extension and then 
+# processed (and probably deleted).
+#
+# gsepg-dataq doesn't care about output directory contents. All cleaning operations
+# are achieved by YOUR application or system.
+#
+
+function usage {
+    echo "Script has to be invocated with hostname and port parameters:"
+    echo "-u host name"
+    echo "-p port"
+    echo "-d output directory"
+    echo -e "\nExample: $prog_name -u localhost -p 2000"
+}
+
+function start_epg_extract {
+    tmp_fname="$output_dir/actual"
+    # run gsepg-extract
+    $script_dir/gsepg-filter -u $host_name -p $host_port | \
+    $script_dir/gsepg-extract -p $pid_fname -o $tmp_fname - &
+}
+
+function run {
+    moment=`date +%Y%m%d.%H%M%S`
+    tmp_fname="$output_dir/actual"
+    out_fname="$output_dir/epg_$moment.json"
+    # move actual file to out_fname
+    mv $tmp_fname $out_fname
+    signal_pid=`cat $pid_fname`
+    echo "Signaling pid $signal_pid"
+    # send signal to recreate data JSON dict
+    kill -USR2 $signal_pid
+}
+
+function int_handler {
+    echo "Exit signal catched."
+    signal_pid=`cat $pid_fname`
+    echo "Signaling pid $signal_pid"
+    # Finishes output (valid) and ends execution as soon as possible.
+    kill -USR1 $signal_pid 2>&1 >/dev/null
+    while run_status=`ps x | grep $signal_pid | grep -v 'grep'`; do
+        echo "Waiting to gsepg-extract..."
+        sleep 1
+    done
+    exit 0
+}
+
+# --- MAIN ---
+SLEEP_HOW_LONG=15 #sec.
+prog_name=$0
+host_name=''
+host_port=''
+script_dir=`dirname $0`
+pid_fname="$script_dir/pid.gsepg-extract"
+output_dir='/tmp'
+
+while getopts d:u:p:h opt; do
+    case $opt in
+        u)
+        host_name=$OPTARG
+        ;;
+        p)
+        host_port=$OPTARG
+        ;;
+        d)
+        output_dir=$OPTARG
+        ;;
+        h)
+        usage
+        exit 0
+        ;;
+    esac
+done
+
+# basic parameters check
+if [[ $host_name == "" ]] || [[ $host_port == "" ]]; then
+    echo "Host name and port have to be set."
+    exit 1
+fi
+if [[ $output_dir == "/tmp" ]]; then
+    echo "Output directory has to be set."
+    exit 2
+fi
+
+# variable init
+
+# signal handlers
+trap int_handler INT
+trap int_handler TERM
+
+start_epg_extract
+while :; do
+    sleep $SLEEP_HOW_LONG
+    run
+done
+
+exit 0
