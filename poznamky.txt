@@ -1,7 +1,0 @@
-EPG Stream
-==============
-
-Syncrhonizace
----------------
-Pokud je i v EPG streamu synchronizacni byte 0x47, je ve streamu pritomen 
-po kazdych 187 Byte (187 bajtu je mezi dvema 0x47).
