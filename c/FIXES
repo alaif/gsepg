@@ -1,0 +1,2 @@
+1. #ifdef __cplusplus ... #endif .. urobit makro, ktere to tam vydosazuje.
+2. dvbchar: zmenit can_output a zprehlednit (napsat si vlastni ispunct, ktery vylouci zavorky z true nebo tak neco).
